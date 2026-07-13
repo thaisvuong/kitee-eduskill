@@ -1,0 +1,24 @@
+services:
+  kitee-web:
+    build: .
+    ports:
+      - "3100:3100"
+    environment:
+      NODE_ENV: production
+      PORT: "3100"
+      # Trong container, engine eduSkill và Output nằm ở /data (mount từ host bên dưới)
+      EDUSKILL_DIR: /data/eduSkill
+      KITEE_WORKSPACE_DIR: /data/Kitee
+      HERMES_EDUSKILL_OUTPUT_DIR: /data/Kitee/Output
+      HERMES_HOME: /data/hermes
+      NINE_ROUTER_BASE_URL: ${NINE_ROUTER_BASE_URL:-http://host.docker.internal:20128/v1}
+      HERMES_WORKER_MODEL: ${HERMES_WORKER_MODEL:-gc/gemini-2.5-flash}
+      HERMES_DRIVE_PARENT_ID: ${HERMES_DRIVE_PARENT_ID:-}
+    volumes:
+      # Sửa các đường dẫn host bên trái cho máy bạn
+      - ./eduSkill:/data/eduSkill
+      - ./Kitee:/data/Kitee
+      - ./hermes:/data/hermes
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
