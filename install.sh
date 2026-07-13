@@ -150,7 +150,7 @@ if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:20128/ | grep -qE "^(
   ok "9router đã chạy tại http://localhost:20128"
 else
   log "Khởi động 9router ở nền..."
-  nohup 9router -n >/tmp/9router.out 2>/tmp/9router.err &
+  nohup 9router --host 127.0.0.1 -p 20128 -n >/tmp/9router.out 2>/tmp/9router.err &
   sleep 3
 fi
 
