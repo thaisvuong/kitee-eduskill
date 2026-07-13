@@ -14,7 +14,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     name: '/es-create', aliases: ['/topic', '/es-topic', '/es-compose', '/chuyende', '/soan'],
     mode: 'topic', label: 'Soạn chuyên đề đầy đủ (lý thuyết + ví dụ + bài tập + đáp án)',
     usage: '/es-create <chủ đề> [lớp N] [môn] [--summary] [--special "…"]',
-    example: '/es-create Phân số lớp 5 toán --summary',
+    example: '/es-create Phân số lớp 5 toán',
   },
   {
     name: '/es-test', aliases: ['/test', '/es-exam', '/es-de', '/de', '/kiemtra'],

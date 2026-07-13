@@ -21,11 +21,29 @@ type SettingsShape = {
   defaultWorkerModel: string; useSummary: boolean; uploadDrive: boolean
   fallbackModels: string; modelRetries: number; retryDelayMs: number
 }
+type ComposeMode = 'detailed' | 'summary' | 'concise'
 
-const LS = { authed: 'kitee.authed', view: 'kitee.view', msgs: 'kitee.msgs', input: 'kitee.input' }
+const LS = { authed: 'kitee.authed', view: 'kitee.view', msgs: 'kitee.msgs', input: 'kitee.input', composeMode: 'kitee.composeMode' }
 const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 const fileUrl = (root: string, param: 'preview' | 'download', rel: string) =>
   `/api/files?root=${encodeURIComponent(root)}&${param}=${encodeURIComponent(rel)}`
+const COMPOSE_MODES: { value: ComposeMode; label: string; hint: string }[] = [
+  { value: 'detailed', label: 'Lý thuyết chi tiết', hint: 'Đầy đủ lý thuyết, ví dụ, bài tập, đáp án' },
+  { value: 'summary', label: 'Tóm tắt', hint: 'Bản gọn hơn, vẫn đủ ý chính' },
+  { value: 'concise', label: 'Ngắn gọn/cô đọng', hint: 'Ưu tiên nội dung chính, giảm diễn giải lặp' },
+]
+const CREATE_TOKENS = new Set(['/es-create', '/topic', '/chuyende', '/soan', '/es-compose', '/es-topic', '/es-soan'])
+
+function applyComposeMode(command: string, mode: ComposeMode) {
+  const token = (command.trim().split(/\s+/)[0] || '').toLowerCase()
+  if (!CREATE_TOKENS.has(token) || mode === 'detailed') return command
+  let out = command.trim()
+  if (!/--summary\b/i.test(out)) out += ' --summary'
+  if (mode === 'concise' && !/--special\s+"[^"]+"/i.test(out)) {
+    out += ' --special "Viết ngắn gọn, cô đọng, tập trung nội dung chính; giảm diễn giải lặp lại nhưng vẫn giữ cấu trúc sư phạm rõ ràng."'
+  }
+  return out
+}
 
 // Các bước agent trong pipeline eduSkill (theo từng loại lệnh).
 const AGENT_FLOWS: Record<string, string[]> = {
@@ -177,12 +195,20 @@ function Chat({ settings, msgs, setMsgs, input, setInput }: {
   const [sugs, setSugs] = useState<SlashCommand[]>([])
   const [sugIdx, setSugIdx] = useState(0)
   const [uploading, setUploading] = useState(false)
+  const [composeMode, setComposeMode] = useState<ComposeMode>('detailed')
   const scrollRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const runningCount = msgs.filter(m => m.role === 'run' && m.status === 'running').length
 
   useEffect(() => { scrollRef.current?.scrollTo({ top: 1e9, behavior: 'smooth' }) }, [msgs.length])
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LS.composeMode) as ComposeMode | null
+      if (saved && ['detailed', 'summary', 'concise'].includes(saved)) setComposeMode(saved)
+    } catch {}
+  }, [])
+  useEffect(() => { try { localStorage.setItem(LS.composeMode, composeMode) } catch {} }, [composeMode])
 
   function updateInput(v: string) {
     setInput(v)
@@ -259,12 +285,13 @@ function Chat({ settings, msgs, setMsgs, input, setInput }: {
       return
     }
 
+    const finalCommand = applyComposeMode(t, composeMode)
     const jobId = uid()
     setMsgs(m => [...m,
-      { id: uid(), role: 'user', text: t },
-      { id: jobId, role: 'run', command: t, logs: [], status: 'running', created: [], outputDir: settings?.outputDir || '', startedAt: Date.now() },
+      { id: uid(), role: 'user', text: finalCommand },
+      { id: jobId, role: 'run', command: finalCommand, logs: [], status: 'running', created: [], outputDir: settings?.outputDir || '', startedAt: Date.now() },
     ])
-    void runCommand(jobId, t)
+    void runCommand(jobId, finalCommand)
   }
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -329,6 +356,21 @@ function Chat({ settings, msgs, setMsgs, input, setInput }: {
         </div>
 
         <div className="composer">
+          <div className="compose-options">
+            <span className="compose-label">Kiểu soạn</span>
+            {COMPOSE_MODES.map(m => (
+              <button
+                key={m.value}
+                type="button"
+                className={`compose-chip ${composeMode === m.value ? 'active' : ''}`}
+                title={m.hint}
+                onClick={() => setComposeMode(m.value)}
+              >
+                {m.label}
+              </button>
+            ))}
+            <span className="compose-hint">Áp dụng cho /es-create, /topic, /soan</span>
+          </div>
           <div className="composer-inner" style={{ position: 'relative' }}>
             {sugs.length > 0 && (
               <div className="autocomplete">
