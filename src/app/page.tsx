@@ -663,6 +663,8 @@ function SettingsView({ settings, onSaved }: { settings: SettingsShape | null; o
   const [info, setInfo] = useState<any>(null)
   const [loadingInfo, setLoadingInfo] = useState(false)
   const [editPath, setEditPath] = useState<string | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<any>(null)
+  const [updating, setUpdating] = useState(false)
 
   useEffect(() => { setForm(settings) }, [settings])
 
@@ -684,6 +686,27 @@ function SettingsView({ settings, onSaved }: { settings: SettingsShape | null; o
       const d = await r.json()
       if (d.ok) { onSaved(d.settings); setSaved(true); setTimeout(() => setSaved(false), 2500) }
     } finally { setSaving(false) }
+  }
+
+  async function checkUpdate() {
+    setUpdating(true)
+    try {
+      const d = await fetch('/api/update').then(r => r.json())
+      setUpdateInfo(d)
+    } catch (e: any) {
+      setUpdateInfo({ ok: false, error: e?.message || 'Không kiểm tra được update' })
+    } finally { setUpdating(false) }
+  }
+
+  async function updateFromGitHub() {
+    if (!confirm('Cập nhật local app từ GitHub? App sẽ build lại; sau đó cần restart npm start.')) return
+    setUpdating(true)
+    try {
+      const d = await fetch('/api/update', { method: 'POST' }).then(r => r.json())
+      setUpdateInfo(d)
+    } catch (e: any) {
+      setUpdateInfo({ ok: false, error: e?.message || 'Cập nhật thất bại' })
+    } finally { setUpdating(false) }
   }
 
   return (
@@ -729,6 +752,38 @@ function SettingsView({ settings, onSaved }: { settings: SettingsShape | null; o
             <div className="field"><label>Drive Folder URL</label><input value={form.driveFolderUrl} onChange={e => set('driveFolderUrl', e.target.value)} /></div>
             <label className="check-row"><input type="checkbox" checked={form.uploadDrive} onChange={e => set('uploadDrive', e.target.checked)} /> Tự động upload lên Drive sau khi tạo</label>
           </div>
+        </div>
+
+        <div className="card">
+          <div className="split-head">
+            <div>
+              <h3>Cập nhật local app từ GitHub</h3>
+              <p className="desc">Dùng khi repo GitHub có bản mới. App sẽ pull code, npm install và build lại trên máy này.</p>
+            </div>
+            <div className="inline-actions">
+              <button className="btn ghost mini" onClick={checkUpdate} disabled={updating}><RefreshCw size={14} /> Kiểm tra</button>
+              <button className="btn navy mini" onClick={updateFromGitHub} disabled={updating}>Cập nhật</button>
+            </div>
+          </div>
+          <p className="desc">Terminal tương đương: <code>cd ~/kitee-eduskill && ./update.sh</code></p>
+          {updating && <p className="desc">Đang xử lý update…</p>}
+          {updateInfo && (
+            <div className={`update-box ${updateInfo.ok ? 'ok' : 'err'}`}>
+              {updateInfo.ok ? (
+                <>
+                  <div><b>Local:</b> {updateInfo.local || '—'} · <b>GitHub:</b> {updateInfo.remote || updateInfo.local || '—'}</div>
+                  {updateInfo.behind ? <div>Có bản mới trên GitHub.</div> : <div>Đang ở bản mới nhất.</div>}
+                  {updateInfo.restartRequired && <div><b>Cần restart:</b> bấm Ctrl+C ở Terminal đang chạy app, rồi chạy <code>npm start</code>.</div>}
+                  {updateInfo.dirty && <div>Local đang có thay đổi chưa commit; không nên tự cập nhật.</div>}
+                </>
+              ) : (
+                <>
+                  <div><b>Lỗi:</b> {updateInfo.error || 'Không cập nhật được'}</div>
+                  {updateInfo.status && <pre>{updateInfo.status}</pre>}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="card">

@@ -131,6 +131,13 @@ button, input, select, textarea { font: inherit; }
 .check-row input { width: 16px; height: 16px; accent-color: var(--orange); }
 .settings-actions { display: flex; gap: 10px; margin-top: 4px; }
 .saved-note { color: var(--success); font-size: 13px; font-weight: 700; align-self: center; }
+.update-box {
+  margin-top: 10px; border-radius: 10px; border: 1px solid var(--line); padding: 10px 12px;
+  font-size: 13px; color: var(--text); background: var(--panel-soft);
+}
+.update-box.ok { border-color: #cbe8d9; background: #f2fbf6; }
+.update-box.err { border-color: #ffd6d6; background: #fff5f5; color: #8b1e1e; }
+.update-box pre { margin: 8px 0 0; white-space: pre-wrap; font-size: 12px; }
 
 /* ---------- Chat ---------- */
 .chat { display: flex; flex-direction: column; height: calc(100vh - 64px); }
