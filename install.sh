@@ -89,25 +89,31 @@ ensure_9router() {
 }
 ensure_9router
 
-# ── 3) eduSkill engine ─────────────────────────────────────────────
-ensure_eduskill() {
-  local target="$HOME/eduSkill"
-  if [ -f "$target/slash.mjs" ]; then
-    ok "eduSkill engine sẵn có: $target"
-    EDUSKILL_DIR="$target"; return
-  fi
-  log "Tải eduSkill engine..."
-  # ponytail: tách repo eduSkill riêng khi có. Hiện tại clone từ mirror công khai.
-  local repo="${KITEE_EDUSKILL_REPO:-https://github.com/thaisvuong/kitee-eduskill.git}"
-  # eduSkill có thể chưa tách repo riêng; nếu ENV không đặt thì bỏ qua, người dùng tự đặt sau.
-  if [ -n "${KITEE_EDUSKILL_REPO:-}" ]; then
-    git clone --depth=1 "$repo" "$target" || warn "Không clone được eduSkill. Hãy đặt EDUSKILL_DIR thủ công."
-  else
-    warn "Bỏ qua eduSkill. Sau khi cài xong, đặt EDUSKILL_DIR trong .env.local trỏ tới thư mục có slash.mjs."
-  fi
-  EDUSKILL_DIR="$target"
+# ── 3) eduSkill engine (đi kèm repo) ───────────────────────────────
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+EDUSKILL_DIR="$REPO_DIR/eduSkill"
+if [ ! -f "$EDUSKILL_DIR/slash.mjs" ]; then
+  fail "Không tìm thấy eduSkill/slash.mjs trong repo. Repo có thể bị hỏng — hãy clone lại."
+fi
+ok "eduSkill engine: $EDUSKILL_DIR"
+
+# ── 3b) Python deps cho eduSkill ───────────────────────────────────
+ensure_python_deps() {
+  local py
+  for cand in \
+    "${HERMES_PYTHON:-}" \
+    /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 \
+    /opt/homebrew/bin/python3 \
+    /usr/local/bin/python3 \
+    python3; do
+    [ -n "$cand" ] && command -v "$cand" >/dev/null 2>&1 && { py="$cand"; break; }
+  done
+  [ -n "${py:-}" ] || { warn "Không tìm thấy Python 3. Bỏ qua cài lib Python — tính năng Word sẽ không chạy."; return; }
+  log "Cài Python deps cho eduSkill bằng $py..."
+  env -u PYTHONPATH -u PYTHONHOME "$py" -m pip install --user --quiet -r "$EDUSKILL_DIR/requirements.txt" \
+    || warn "Cài lib Python thất bại — hãy cài tay: pip install -r eduSkill/requirements.txt"
 }
-ensure_eduskill
+ensure_python_deps
 
 # ── 4) Cài dependencies + build Kitee web app ──────────────────────
 log "Cài phụ thuộc web app..."
@@ -123,7 +129,7 @@ if [ ! -f .env.local ]; then
 # Kitee eduSkill — cấu hình máy của bạn
 KITEE_WORKSPACE_DIR=$USER_HOME/Kitee
 HERMES_EDUSKILL_OUTPUT_DIR=$USER_HOME/Kitee/Output
-EDUSKILL_DIR=${EDUSKILL_DIR:-$USER_HOME/eduSkill}
+EDUSKILL_DIR=$EDUSKILL_DIR
 HERMES_HOME=$USER_HOME/.hermes/profiles/cmkitee
 HERMES_DRIVE_PARENT_ID=
 NINE_ROUTER_BASE_URL=http://localhost:20128/v1
