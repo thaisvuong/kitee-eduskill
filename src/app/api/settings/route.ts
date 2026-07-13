@@ -22,11 +22,18 @@ const DEFAULTS = {
 }
 
 async function readSettings() {
+  const normalize = async (s: Record<string, any>) => {
+    const hasSlash = async (dir: string) => {
+      try { await fs.access(path.join(dir, 'slash.mjs')); return true } catch { return false }
+    }
+    if (!(await hasSlash(String(s.eduSkillDir || '')))) s.eduSkillDir = kiteeConfig.eduSkillDir
+    return s
+  }
   try {
     const raw = await fs.readFile(SETTINGS_PATH, 'utf8')
-    return { ...DEFAULTS, ...JSON.parse(raw) }
+    return normalize({ ...DEFAULTS, ...JSON.parse(raw) })
   } catch {
-    return { ...DEFAULTS }
+    return normalize({ ...DEFAULTS })
   }
 }
 

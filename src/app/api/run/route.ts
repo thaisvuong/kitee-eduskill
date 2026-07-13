@@ -54,6 +54,15 @@ async function collectResultFiles(root: string, created: string[]) {
   return out
 }
 
+async function resolveEduSkillDir(candidate: string) {
+  const dirs = [candidate, kiteeConfig.eduSkillDir, path.join(process.cwd(), 'eduSkill')]
+  for (const dir of dirs) {
+    if (!dir) continue
+    try { await fs.access(path.join(dir, 'slash.mjs')); return dir } catch {}
+  }
+  return candidate || kiteeConfig.eduSkillDir
+}
+
 async function uploadToDrive(filePath: string, parentId: string, hermesHome: string): Promise<{ ok: boolean; name: string; link?: string; error?: string }> {
   const script = path.join(hermesHome, 'skills/productivity/google-workspace/scripts/google_api.py')
   const name = path.basename(filePath)
@@ -85,8 +94,6 @@ export async function POST(req: Request) {
   const token = (line.split(/\s+/)[0] || '').toLowerCase()
   const cmd = findCommand(token)
   const outputDir = settings.outputDir || kiteeConfig.outputDir
-  const eduSkillDir = settings.eduSkillDir || kiteeConfig.eduSkillDir
-  const slashPath = path.join(eduSkillDir, 'slash.mjs')
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -95,6 +102,8 @@ export async function POST(req: Request) {
       if (!line.startsWith('/')) { sse(controller, 'error', { message: 'Lệnh phải bắt đầu bằng "/". Gõ /help.' }); return close() }
       if (!cmd) { sse(controller, 'error', { message: `Không rõ lệnh "${token}". Gõ /help để xem danh sách.` }); return close() }
       if (token === '/help' || token === '/es' || token === '/es-help' || token === '/?') { sse(controller, 'done', { help: true, reply: 'help', code: 0 }); return close() }
+      const eduSkillDir = await resolveEduSkillDir(settings.eduSkillDir || kiteeConfig.eduSkillDir)
+      const slashPath = path.join(eduSkillDir, 'slash.mjs')
       try { await fs.access(slashPath) } catch {
         sse(controller, 'error', { message: `Không tìm thấy engine eduSkill tại ${slashPath}. Kiểm tra "Thư mục eduSkill" trong Cài đặt.` })
         return close()

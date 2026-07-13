@@ -1,14 +1,15 @@
 import path from 'node:path'
 import os from 'node:os'
 
-// Repo root = ../../.. tính từ file này (src/lib/config/kitee.ts).
-const REPO_ROOT = path.resolve(__dirname, '../../..')
+// In standalone mode, __dirname points inside .next/standalone/.next/server.
+// process.cwd() is the repo root when launched via `npm start` from the project.
+const RUNTIME_ROOT = process.env.KITEE_APP_ROOT || process.cwd()
 const HOME = os.homedir()
 
 export const kiteeConfig = {
   workspaceDir: process.env.KITEE_WORKSPACE_DIR ?? path.join(HOME, 'Kitee'),
   outputDir: process.env.HERMES_EDUSKILL_OUTPUT_DIR ?? path.join(HOME, 'Kitee', 'Output'),
-  eduSkillDir: process.env.EDUSKILL_DIR ?? path.join(REPO_ROOT, 'eduSkill'),
+  eduSkillDir: process.env.EDUSKILL_DIR ?? path.join(RUNTIME_ROOT, 'eduSkill'),
   hermesHome: process.env.HERMES_HOME ?? path.join(HOME, '.hermes', 'profiles', 'cmkitee'),
   driveParentId: process.env.HERMES_DRIVE_PARENT_ID ?? '',
   routerBaseUrl: process.env.NINE_ROUTER_BASE_URL ?? 'http://localhost:20128/v1',

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build && mkdir -p .next/standalone/.next && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static",
-    "start": "PORT=3100 node .next/standalone/server.js",
+    "start": "KITEE_APP_ROOT=${KITEE_APP_ROOT:-$PWD} EDUSKILL_DIR=${EDUSKILL_DIR:-$PWD/eduSkill} PORT=${PORT:-3100} node .next/standalone/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
