@@ -42,7 +42,7 @@ def load_token(token_file):
         return json.load(f)
 
 
-def refresh_if_needed(token_file, data):
+def refresh_if_needed(token_file, data, force=False):
     """Refresh access token using refresh_token when expired/near expiry."""
     from datetime import datetime, timezone
     client = data.get('installed') or data.get('web') or {}
@@ -50,7 +50,7 @@ def refresh_if_needed(token_file, data):
     client_secret = data.get('client_secret') or client.get('client_secret')
     expiry = data.get('expiry')
     need = True
-    if expiry:
+    if expiry and not force:
         try:
             exp = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
             need = (exp - datetime.now(timezone.utc)).total_seconds() < 120
@@ -87,6 +87,10 @@ def refresh_if_needed(token_file, data):
         except Exception:
             pass
     return new_token or data.get('token') or data.get('access_token')
+
+
+def is_auth_error(err):
+    return 'HTTP 401' in str(err) or 'UNAUTHENTICATED' in str(err) or 'Invalid Credentials' in str(err)
 
 
 def request(token, url, method='GET', payload=None, headers=None):
@@ -188,7 +192,13 @@ def main():
         if not f.exists():
             skipped.append({'file': str(f), 'reason': 'missing'})
             continue
-        docx = upload_raw_docx(token, f, args.folder)
+        try:
+            docx = upload_raw_docx(token, f, args.folder)
+        except Exception as e:
+            if not is_auth_error(e):
+                raise
+            token = refresh_if_needed(args.token, tdata, force=True)
+            docx = upload_raw_docx(token, f, args.folder)
         gdoc, gdoc_error = None, ''
         try:
             gdoc = upload_as_gdoc(token, f, args.folder)

@@ -326,7 +326,7 @@ function renderQuizFrameMarkdown({ topic, grade, subject, totalScore, timeMinute
   lines.push(`## ${quiz.title || `Quiz ${quiz.index}`} — ${quiz.difficulty || ''}`)
   if (quiz.goal) lines.push(`*Mục tiêu:* ${quiz.goal}`)
   for (const q of quiz.questions || []) {
-   lines.push(`- **Câu ${q.index}** (${q.points} điểm · ${q.type}): ${q.note || ''}${q.visual ? ` · hình: ${q.visual}` : ''}`)
+   lines.push(`- **Câu ${q.index}** (${q.points} điểm · ${q.type}): Dạng bài: ${q.note || ''}${q.visual ? ` · hình: ${q.visual}` : ''}`)
   }
   lines.push('')
  }

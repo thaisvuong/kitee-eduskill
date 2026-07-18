@@ -47,6 +47,7 @@ Nội dung khung.md liên quan:
 Yêu cầu hình: ${question.visual || 'không bắt buộc'}${ref}
 
 Không được tự chọn câu khác. Phải triển khai đúng dòng khung.md đã lấy ở trên.
+ĐẦU VÀO là DẠNG BÀI trong khung.md (chỉ mô tả loại bài + dữ kiện dự kiến + bẫy + năng lực), CHƯA phải đề hoàn chỉnh. Nhiệm vụ của bạn: BIẾN DẠNG BÀI THÀNH CÂU HỎI HOÀN CHỈNH. Tự chọn số liệu cụ thể hợp lý, công bằng, đúng lớp ${grade}, đúng số điểm ${question.points || ''}. Tự viết đề đầy đủ, tạo đáp án, hints, lời giải. QuizPlanner chỉ giao dạng bài; việc soạn câu hoàn chỉnh là của bạn.
 Ưu tiên: nếu có NGUỒN/TÀI LIỆU tham chiếu ở trên, hãy BÁM theo bài tập/dạng câu trong nguồn và CHẾ LẠI về đúng loại "${question.type}" (trắc nghiệm 4 lựa chọn / điền đáp án / tự luận). Không bịa nếu nguồn đã có dạng phù hợp.
 Câu hỏi phải khó hơn mức cơ bản, có bẫy hợp lệ theo note/độ khó QuizPlanner giao. Ưu tiên bẫy: dữ kiện thừa, phương án nhiễu rất gần đúng, nhầm đơn vị, nhầm thứ tự phép tính, nhầm điều kiện, nhầm khái niệm, nhầm đọc hình. Bẫy phải công bằng, không mơ hồ.
 Trả về: question, options (nếu trắc nghiệm), answer, hints, solution, visual.
