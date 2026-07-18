@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { kiteeConfig } from '@/lib/config/kitee'
+import { kientreConfig } from '@/lib/config/kientre'
 
 export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    app: 'Kitee eduSkill Admin',
-    config: kiteeConfig,
-  })
+ return NextResponse.json({
+  ok: true,
+  app: 'KientreAAA',
+  config: kientreConfig,
+ })
 }

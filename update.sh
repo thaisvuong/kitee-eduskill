@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Kitee eduSkill — cập nhật local app từ GitHub.
+# KientreAAA — cập nhật local app từ GitHub.
 # Chạy trong repo: ./update.sh
 
 set -euo pipefail
@@ -15,9 +15,9 @@ if ! command -v git >/dev/null 2>&1; then fail "Chưa có git"; fi
 if ! command -v npm >/dev/null 2>&1; then fail "Chưa có npm/Node.js"; fi
 
 if [ -n "$(git status --short)" ]; then
-  echo "Local đang có thay đổi chưa commit:"
-  git status --short
-  fail "Dừng cập nhật để tránh ghi đè code local. Hãy commit/stash/xóa thay đổi trước."
+ echo "Local đang có thay đổi chưa commit:"
+ git status --short
+ fail "Dừng cập nhật để tránh ghi đè code local. Hãy commit/stash/xóa thay đổi trước."
 fi
 
 log "Tải thông tin mới nhất từ GitHub"
@@ -26,10 +26,10 @@ git fetch origin main
 LOCAL="$(git rev-parse --short HEAD)"
 REMOTE="$(git rev-parse --short origin/main)"
 if [ "$LOCAL" = "$REMOTE" ]; then
-  ok "Đang ở bản mới nhất: $LOCAL"
+ ok "Đang ở bản mới nhất: $LOCAL"
 else
-  log "Cập nhật $LOCAL → $REMOTE"
-  git pull --ff-only origin main
+ log "Cập nhật $LOCAL → $REMOTE"
+ git pull --ff-only origin main
 fi
 
 log "Cài/cập nhật thư viện"
@@ -41,4 +41,4 @@ npm run build
 ok "Cập nhật xong"
 echo
 echo "Chạy lại app bằng:"
-echo "  npm start"
+echo " npm start"

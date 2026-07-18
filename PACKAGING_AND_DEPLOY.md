@@ -1,4 +1,4 @@
-# Đóng gói Kitee Web App để gửi cho người khác
+# Đóng gói Kientre Web App để gửi cho người khác
 
 Mục tiêu: người nhận **clone hoặc giải nén** là có thể chạy web app, rồi tự điền cấu hình riêng của họ (đường dẫn, model, router, OAuth/keys). Không nhúng token hay profile cá nhân của anh vào gói gửi đi.
 
@@ -9,16 +9,16 @@ Mục tiêu: người nhận **clone hoặc giải nén** là có thể chạy w
 Gửi **repo web app này** (KHÔNG gửi `node_modules`, `.next`, `Output`, token, OAuth, memory, sessions):
 
 ```text
-KiteeApp/
-  src/
-  package.json
-  package-lock.json
-  Dockerfile
-  docker-compose.yml
-  .env.example
-  README.md
-  PACKAGING_AND_DEPLOY.md
-  LICENSE
+KientreApp/
+ src/
+ package.json
+ package-lock.json
+ Dockerfile
+ docker-compose.yml
+ .env.example
+ README.md
+ PACKAGING_AND_DEPLOY.md
+ LICENSE
 ```
 
 Không gửi:
@@ -40,15 +40,15 @@ Tách làm 3 phần:
 - repo này
 - Next.js UI + API route `/api/run`, `/api/files`, `/api/settings`
 
-### B. eduSkill engine
+### B. Kientre
 - thư mục riêng chứa `slash.mjs`
 - web app chỉ **gọi sang** engine qua child process
 
 ### C. 9router / LLM router
 - mỗi người tự có 9router/model/quota riêng
 - web app chỉ cần biết:
-  - `HERMES_ROUTER_URL` / `routerBaseUrl`
-  - model mặc định
+ - `HERMES_ROUTER_URL` / `routerBaseUrl`
+ - model mặc định
 
 > Kết luận: **đóng gói repo web app + hướng dẫn setup**, không nên nhét Hermes profile riêng của anh vào bản phát hành.
 
@@ -64,7 +64,7 @@ Phù hợp nhất khi người nhận có máy riêng và quota/model riêng.
 
 ```bash
 git clone <repo-url>
-cd KiteeApp
+cd KientreApp
 cp .env.example .env.local
 npm install
 npm run build
@@ -74,7 +74,7 @@ npm run start
 Sau đó họ cấu hình trong tab **Cài đặt**:
 - Output dir
 - Workspace dir
-- eduSkill dir
+- Kientre dir
 - router URL
 - model mặc định
 - Drive folder riêng của họ
@@ -86,7 +86,7 @@ Sau đó họ cấu hình trong tab **Cài đặt**:
 - không lộ token của anh
 
 ### Nhược điểm
-- họ phải tự cài Hermes/9router/eduSkill
+- họ phải tự cài Hermes/9router/Kientre
 
 ---
 
@@ -96,7 +96,7 @@ Phù hợp khi anh host cho nhiều người cùng dùng.
 
 ### Khi đó server nên có:
 - web app này
-- eduSkill engine
+- Kientre
 - 9router đang chạy trên server
 - volume bền cho `Output/`
 
@@ -137,8 +137,8 @@ Rồi họ tự cấu hình provider/model riêng trong Hermes/9router.
 Anh có thể gửi kèm script cài:
 - Hermes
 - Node 22
-- clone eduSkill
-- clone KiteeApp
+- clone Kientre
+- clone KientreApp
 - tạo `.env.local`
 - khởi động 9router
 - chạy web app
@@ -156,9 +156,9 @@ Người nhận vẫn phải tự nhập:
 ## Web app (`.env.local`)
 
 ```env
-KITEE_WORKSPACE_DIR=/path/to/workspace
-HERMES_EDUSKILL_OUTPUT_DIR=/path/to/workspace/Output
-EDUSKILL_DIR=/path/to/eduSkill
+KIENTRE_WORKSPACE_DIR=/path/to/workspace
+KIENTRE_OUTPUT_DIR=/path/to/workspace/Output
+KIENTRE_ENGINE_DIR=/path/to/kientre-engine
 HERMES_HOME=/path/to/.hermes/profile
 HERMES_DRIVE_PARENT_ID=their_drive_folder_id
 NINE_ROUTER_BASE_URL=http://localhost:20128/v1
@@ -216,8 +216,8 @@ Cần thêm:
 Phương án thực tế nhất lúc này:
 
 ### Gửi họ 2 repo/thư mục
-1. `KiteeApp` (repo web app)
-2. `eduSkill` (engine)
+1. `KientreApp` (repo web app)
+2. `Kientre` (engine)
 
 ### Kèm 1 file hướng dẫn
 - cài Node 22
@@ -237,16 +237,16 @@ Phương án thực tế nhất lúc này:
 
 ## 8. Lệnh đóng gói release sạch
 
-Từ repo `KiteeApp`:
+Từ repo `KientreApp`:
 
 ```bash
 rm -rf node_modules .next
-zip -r kitee-webapp-release.zip . \
-  -x "node_modules/*" \
-  -x ".next/*" \
-  -x "Output/*" \
-  -x ".env.local" \
-  -x ".DS_Store"
+zip -r kientre-webapp-release.zip . \
+ -x "node_modules/*" \
+ -x ".next/*" \
+ -x "Output/*" \
+ -x ".env.local" \
+ -x ".DS_Store"
 ```
 
 Tốt hơn: push lên GitHub/GitLab rồi gửi link repo.
@@ -256,7 +256,7 @@ Tốt hơn: push lên GitHub/GitLab rồi gửi link repo.
 ## 9. Khuyến nghị chốt
 
 **Nếu gửi cho 1-2 người kỹ thuật**:
-- gửi repo + `eduSkill` + hướng dẫn setup
+- gửi repo + `Kientre` + hướng dẫn setup
 
 **Nếu muốn nhiều người dùng ngay, ít lỗi nhất**:
 - anh host 1 server chung

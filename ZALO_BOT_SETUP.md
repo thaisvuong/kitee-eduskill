@@ -1,4 +1,4 @@
-# Zalo bot riêng cho Kitee / profile `cmkitee`
+# Zalo bot riêng cho Kientre / profile `cmkitee`
 
 ## Kết nối hiện tại
 
@@ -38,7 +38,7 @@ ZALO_BOT_TOKEN=...
 Bản tham chiếu trong workspace:
 
 ```text
-/Users/nguyenthaivuong/Desktop/HermesWorkSpace/Kitee/zalo-bridge/.env
+/Users/nguyenthaivuong/Desktop/HermesWorkSpace/Kientre/zalo-bridge/.env
 ```
 
 Không commit, không gửi token qua chat.
@@ -69,17 +69,17 @@ Config profile:
 
 ```yaml
 plugins:
-  enabled:
-    - zalo
+ enabled:
+  - zalo
 platforms:
-  zalo:
-    enabled: true
-    extra:
-      poll_timeout: 30
-zalo_bot:
+ zalo:
   enabled: true
-  mode: bot_creator_polling
-  api_base: https://bot-api.zaloplatforms.com
+  extra:
+   poll_timeout: 30
+zalo_bot:
+ enabled: true
+ mode: bot_creator_polling
+ api_base: https://bot-api.zaloplatforms.com
 ```
 
 ## Xác minh đã chạy
@@ -139,7 +139,7 @@ rồi restart gateway.
 Route webhook cũ vẫn có thể dùng làm fallback:
 
 ```text
-http://127.0.0.1:8754/p/cmkitee/webhooks/zalo-kitee
+http://127.0.0.1:8754/p/cmkitee/webhooks/zalo-kientre
 ```
 
 Nhưng với token dạng `numeric_id:secret`, cách đúng hiện tại là adapter long-polling `bot_creator_polling` ở trên.

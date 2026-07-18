@@ -1,0 +1,345 @@
+import path from 'node:path'
+import { writeFile, mkdir, readFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { extractText } from './server/extract.mjs'
+import { buildWord, slugify } from './server/build.mjs'
+import { designWord } from './server/compiler.mjs'
+import { solveDocument } from './agents/solver.mjs'
+import { reviewDocument } from './agents/reviewer.mjs'
+import { runJudge } from './agents/judge.mjs'
+import { generateExam, generateQuizQuestion } from './agents/examiner.mjs'
+import { planQuizSet } from './agents/quizplanner.mjs'
+import { drawTikzFigure } from './agents/artist.mjs'
+import { fetchImage } from './agents/imagefetcher.mjs'
+import { fetchExerciseSources } from './server/websearch.mjs'
+import { notebookRefs } from './server/notebook.mjs'
+import { createQuizDoc, appendQuizQuestion } from './server/gdoc_stream.mjs'
+
+function dateStr() { return new Date().toISOString().split('T')[0] }
+function gradeNum(grade) { const m = String(grade).match(/\d+/); return m ? m[0] : 'x' }
+function judgeBoundaries(grade, subject) {
+ return [
+  `Phải đúng chương trình ${subject} ${grade}`,
+  `Không dùng kiến thức/phương pháp vượt cấp so với ${grade}`,
+  'Không được sai đáp án, sai đơn vị, thiếu dữ kiện hoặc lập luận mơ hồ',
+  'Cách trình bày phải đủ rõ để giáo viên kiểm tra lại trước khi dùng',
+ ]
+}
+function reviewSummaryBlocks(review, judge) {
+ const items = []
+ if (judge) items.push(`Judge: ${judge.status || 'UNKNOWN'} — ${judge.reason || ''}`)
+ if (review) {
+  items.push(`Reviewer: ${review.verdict || 'UNKNOWN'}${review.score ? ` (${review.score})` : ''} — ${review.overall || ''}`)
+  for (const x of [...(review.blockingErrors || []), ...(review.errors || []), ...(review.requiredFixes || [])].slice(0, 8)) items.push(x)
+ }
+ return [{ type: 'keypoint', title: 'KIỂM ĐỊNH TRƯỚC KHI DÙNG', text: items.join('\n') || 'Đã kiểm tra.' }]
+}
+
+const execFileAsync = promisify(execFile)
+function hermesHome() { return process.env.HERMES_HOME || path.join(process.env.HOME, '.hermes') }
+function googleApiPath() { return path.join(hermesHome(), 'skills/productivity/google-workspace/scripts/google_api.py') }
+async function driveCreateFolder(name, parentId = '') {
+ const args = [googleApiPath(), 'drive', 'create-folder', name]
+ if (parentId) args.push('--parent', parentId)
+ const { stdout } = await execFileAsync('python3', args, { env: { ...process.env, HERMES_HOME: hermesHome() } })
+ return JSON.parse(stdout || '{}')
+}
+async function driveUpload(filePath, parentId = '') {
+ const args = [googleApiPath(), 'drive', 'upload', filePath, '--name', path.basename(filePath)]
+ if (parentId) args.push('--parent', parentId)
+ const { stdout } = await execFileAsync('python3', args, { env: { ...process.env, HERMES_HOME: hermesHome() } })
+ return JSON.parse(stdout || '{}')
+}
+async function maybeUploadFiles(filePaths, folderName) {
+ if (process.env.HERMES_UPLOAD_DRIVE !== '1') return
+ try {
+  const parentId = process.env.HERMES_DRIVE_PARENT_ID || process.env.KIENTRE_DRIVE_FOLDER_ID || ''
+  const folder = await driveCreateFolder(folderName, parentId)
+  const folderId = folder.id || parentId
+  const uploaded = []
+  for (const filePath of filePaths.filter(Boolean)) {
+   console.log(`☁️ Đang tải lên Drive: ${path.basename(filePath)}...`)
+   uploaded.push(await driveUpload(filePath, folderId))
+  }
+  const links = uploaded.map(f => f.webViewLink).filter(Boolean)
+  console.log(`✅ Đã tải ${uploaded.length} file lên Google Drive trong thư mục: ${folder.name || folderName}`)
+  if (links.length) console.log(`🔗 Drive links:\n${links.join('\n')}`)
+ } catch (driveErr) {
+  console.warn(`⚠️ Không thể tải lên Drive (${driveErr.message}). File vẫn được lưu cục bộ.`)
+ }
+}
+
+/** PIPELINE 1: tài liệu -> lời giải chi tiết -> Word. */
+export async function runSolve(filePath, grade, subject = 'Toán') {
+ console.log(`\n📖 Đọc tài liệu: ${filePath}`)
+ const text = await extractText(filePath)
+ if (!text.trim()) throw new Error('Tệp rỗng hoặc không đọc được nội dung.')
+ console.log(`🧮 Agent Giải bài đang giải chi tiết (đúng ${grade})...`)
+ const { title, solutions } = await solveDocument(text, grade, subject)
+ if (!solutions.length) throw new Error('Không tìm thấy câu hỏi nào để giải trong tài liệu.')
+
+ const solvedText = solutions.map(s => `${s.title || 'Câu'}\nĐề: ${s.question || ''}\nLời giải: ${s.solution || ''}`).join('\n\n')
+ console.log(`⚖️ Agent Judge đang kiểm tra lời giải & ranh giới lớp học (${grade})...`)
+ const judge = await runJudge(solvedText.slice(0, 16000), judgeBoundaries(grade, subject), grade)
+ console.log(`🔍 Agent Reviewer đang kiểm tra lại đáp án, đơn vị, độ phù hợp lớp...`)
+ const qa = await reviewDocument(solvedText, grade, subject)
+
+ const blocks = solutions.map(s => ({
+  type: 'example', title: s.title || 'Câu',
+  problem: s.question || '', solution: s.solution || ''
+ }))
+ const base = path.basename(filePath).replace(/\.[^.]+$/, '')
+ const docModel = {
+  title, subject, topic: base, grade,
+  sections: [
+   { heading: 'KIỂM ĐỊNH CHẤT LƯỢNG', blocks: reviewSummaryBlocks(qa, judge) },
+   { heading: 'LỜI GIẢI CHI TIẾT', blocks }
+  ]
+ }
+ const folder = `SOLVE_G${gradeNum(grade)}_${dateStr()}_${slugify(base)}`
+ const wordPath = await buildWord(docModel, folder)
+ await maybeUploadFiles([wordPath], folder)
+ console.log(`\n✨ HOÀN TẤT! Đã giải ${solutions.length} câu.`)
+ console.log(`📍 Word: ${wordPath}`)
+ return wordPath
+}
+
+/** PIPELINE 3: ĐỀ THI -> phiếu đề (trắc nghiệm + điền + tự luận) + đáp án & biểu điểm. */
+export async function runExam(params = {}) {
+ const { grade = 'Lớp 5', subject = 'Toán', topic = '', special = '', notebook = '', essayPoints = 6, reference = '', useWeb = false } = params
+ const mc = +params.mc || 0, fill = +params.fill || 0, essay = +params.essay || 0
+
+ console.log(`📝 Ra đề: ${mc} trắc nghiệm · ${fill} điền đáp án · ${essay} tự luận (${grade}, ${subject})`)
+ let finalReference = String(reference || '').trim()
+ if (useWeb) {
+  try {
+   const ws = await fetchExerciseSources(topic || `đề ${subject} ${grade}`, grade)
+   finalReference = [finalReference, ws.refs].filter(Boolean).join('\n').slice(0, 6000)
+  } catch { /* ok */ }
+ } else {
+  console.log('📝 Không có tài liệu ngoài. Tự soạn đề theo yêu cầu hiện tại.')
+ }
+ if (notebook) { try { const nb = await notebookRefs(notebook, `Tóm tắt dạng bài/ví dụ về ${topic || subject} cho ${grade}`); if (nb.ok) finalReference = (nb.text + '\n' + finalReference).slice(0, 6000) } catch { /* ok */ } }
+
+ const exam = await generateExam({ grade, subject, topic, mc, fill, essay, essayPoints, special, reference: finalReference })
+
+ const secDe = []
+ if (exam.mc.length) secDe.push({
+  heading: 'PHẦN I. TRẮC NGHIỆM',
+  blocks: exam.mc.map((m, i) => {
+   const o = k => String(m.options?.[k] || '').replace(/^\s*[A-Da-d][.)]\s*/, '') // bỏ chữ cái model tự thêm
+   return {
+    type: 'exercise', title: `Câu ${i + 1}`, lines: 0,
+    question: `${m.q}\nA. ${o(0)}   B. ${o(1)}\nC. ${o(2)}   D. ${o(3)}`,
+   }
+  }),
+ })
+ if (exam.fill.length) secDe.push({
+  heading: 'PHẦN II. ĐIỀN ĐÁP ÁN',
+  blocks: exam.fill.map((m, i) => ({ type: 'exercise', title: `Câu ${i + 1}`, question: m.q, lines: 1 })),
+ })
+ if (exam.essay.length) secDe.push({
+  heading: 'PHẦN III. TỰ LUẬN',
+  blocks: exam.essay.map((e, i) => ({
+   type: 'exercise', title: `Câu ${i + 1}`, lines: 4,
+   question: (e.q ? e.q + '\n' : '') + (e.parts || []).map(pt => `${pt.text} (${pt.points} điểm)`).join('\n'),
+  })),
+ })
+ const examModel = { title: `Đề ${topic || 'kiểm tra'} · ${subject}`, subject, topic: topic || 'de-thi', grade, sections: secDe }
+
+ const sol = []
+ if (exam.mc.length) { sol.push({ type: 'subheading', text: 'Trắc nghiệm' }); exam.mc.forEach((m, i) => sol.push({ type: 'solution', title: `Câu ${i + 1}`, content: `Đáp án: ${m.answer}. ${m.solution || ''}` })) }
+ if (exam.fill.length) { sol.push({ type: 'subheading', text: 'Điền đáp án' }); exam.fill.forEach((m, i) => sol.push({ type: 'solution', title: `Câu ${i + 1}`, content: `Đáp án: ${m.answer}. ${m.solution || ''}` })) }
+ if (exam.essay.length) { sol.push({ type: 'subheading', text: 'Tự luận (biểu điểm)' }); exam.essay.forEach((e, i) => sol.push({ type: 'solution', title: `Câu ${i + 1}`, content: (e.parts || []).map(pt => `${pt.text}: ${pt.solution || ''} (${pt.points}đ)`).join(' · ') })) }
+ const solModel = { title: `Đáp án & biểu điểm: ${topic || subject}`, subject, topic: topic || 'de-thi', grade, sections: [{ heading: 'ĐÁP ÁN & BIỂU ĐIỂM', blocks: sol }] }
+
+ const folder = `EXAM_G${gradeNum(grade)}_${dateStr()}_${slugify(topic || subject)}`
+ const wordPath = await buildWord(examModel, folder)
+ const outDir = path.dirname(wordPath)
+ await writeFile(path.join(outDir, 'model_solution.json'), JSON.stringify(solModel, null, 2))
+ const solPath = path.join(outDir, `${folder}_LoiGiai.docx`)
+ await designWord(path.join(outDir, 'model_solution.json'), solPath)
+ await maybeUploadFiles([wordPath, solPath], folder)
+
+ console.log(`\n✨ HOÀN TẤT! ${exam.mc.length} trắc nghiệm · ${exam.fill.length} điền · ${exam.essay.length} tự luận.`)
+ console.log(`📍 Word: ${wordPath}`)
+ console.log(`📗 Đáp án: ${solPath}`)
+ return wordPath
+}
+
+function quizQuestionBlocks(q, detail) {
+ const isMc = String(q.type || '').toLowerCase().includes('trắc')
+ const blocks = [{ type: 'subheading', text: `CÂU ${q.index} (${q.points} điểm${q.type ? ` · ${q.type}` : ''})` }]
+ if (detail.imagePath) blocks.push({ type: 'image', path: detail.imagePath, caption: detail.visual })
+ blocks.push({ type: 'exercise', title: 'Đề bài', question: [detail.question, isMc && detail.options?.length ? detail.options.join('\n') : ''].filter(Boolean).join('\n'), lines: q.type === 'tự luận' ? 6 : 2 })
+ blocks.push({ type: 'note', title: 'Gợi ý', text: (detail.hints || []).join('\n') })
+ blocks.push({ type: 'solution', title: 'Đáp án đúng', content: detail.answer || '' })
+ blocks.push({ type: 'solution', title: 'Lời giải chi tiết', content: detail.solution || '' })
+ return blocks
+}
+
+export async function runQuizSet(params = {}) {
+ const { grade = 'Lớp 4', subject = 'Toán', topic = '', quizCount = 3, totalScore = 10, timeMinutes = 14, reference = '', notebook = '', useWeb = false, onProgress = () => {} } = params
+ const step = text => { try { onProgress({ type: 'assistant', text }) } catch {} }
+ console.log(`🧭 QuizPlanner lập khung: ${quizCount} quiz · ${totalScore} điểm · ${timeMinutes} phút (${grade}, ${subject})`)
+ step(`QuizPlanner: lập bảng khung ${quizCount} quiz, ${totalScore} điểm, ${timeMinutes} phút`)
+ let finalReference = String(reference || '').trim()
+ if (useWeb) {
+  try {
+   const ws = await fetchExerciseSources(topic, grade)
+   finalReference = [finalReference, ws.refs].filter(Boolean).join('\n').slice(0, 6000)
+   if (ws.sources?.length) console.log(`  🔗 Nguồn: ${ws.sources.join(' , ')}`)
+  } catch { /* ok */ }
+ } else {
+  console.log('📝 Không có tài liệu ngoài. Tự soạn quiz theo chương trình, không soạn chuyên đề.')
+ }
+ if (notebook) {
+  try { const nb = await notebookRefs(notebook, `Tóm tắt dạng quiz/bài tập về ${topic} cho ${grade}`); if (nb.ok) finalReference = (nb.text + '\n' + finalReference).slice(0, 6000) } catch { /* ok */ }
+ }
+
+ const plan = await planQuizSet({ topic, grade, subject, quizCount, totalScore, timeMinutes, reference: finalReference })
+ step(`Bảng khung QuizPlanner:\n${plan.quizzes.map(q => `${q.title || `Quiz ${q.index}`}: ${(q.questions || []).map(x => `C${x.index} ${x.type} ${x.points}đ — ${x.note || ''}`).join('\n  ')}`).join('\n')}`)
+ const folder = `QUIZ_G${gradeNum(grade)}_${dateStr()}_${slugify(topic || subject)}`
+ const outDir = path.join(process.env.KIENTRE_OUTPUT_DIR || process.env.HERMES_WORKSPACE_DIR || process.cwd(), folder)
+ await mkdir(path.join(outDir, 'images'), { recursive: true })
+
+ // 1) Xuất file .md khung câu hỏi (các quiz) TRƯỚC KHI soạn chi tiết.
+ const framePath = path.join(outDir, `${folder}_khung.md`)
+ const frameMd = renderQuizFrameMarkdown({ topic, grade, subject, totalScore, timeMinutes, plan })
+ await writeFile(framePath, frameMd, 'utf8')
+ console.log(`🧾 Đã xuất khung câu hỏi (.md): ${framePath}`)
+ step('QuizPlanner: đã xuất file .md khung câu hỏi các quiz')
+
+ // 2) Tạo Google Doc để chèn từng câu theo thời gian thực (nếu bật Drive/OAuth).
+ const driveFolderId = process.env.HERMES_DRIVE_PARENT_ID || process.env.KIENTRE_DRIVE_FOLDER_ID || ''
+ const wantGdoc = process.env.KIENTRE_QUIZ_STREAM_GDOC === '1'
+ let gdoc = null
+ if (wantGdoc) {
+  gdoc = await createQuizDoc(`Bộ quiz ${topic} · ${subject} ${grade}`, driveFolderId)
+  if (gdoc) { console.log(`📝 Google Doc: ${gdoc.url}`); step(`Word/GoogleDocs: đã tạo tài liệu, sẽ chèn từng câu ngay khi soạn xong — ${gdoc.url}`) }
+  else console.warn('⚠️ Không tạo được Google Doc (bỏ qua chèn realtime, vẫn xuất Word local).')
+ }
+
+ const sections = []
+ for (const quiz of plan.quizzes.slice(0, Number(quizCount) || 3)) {
+  const quizTitle = `${quiz.title || `Quiz ${quiz.index}`} — ${quiz.difficulty || ''}`
+  console.log(`🧩 Examiner soạn ${quiz.title || `Quiz ${quiz.index}`}: ${quiz.difficulty || ''}`)
+  step(`Examiner: bắt đầu ${quiz.title || `Quiz ${quiz.index}`} (${quiz.difficulty || ''})`)
+  const blocks = [{ type: 'note', title: 'Thông tin quiz', text: `${quiz.goal || ''}\nTổng điểm: ${totalScore}. Thời gian: ${timeMinutes} phút. Độ khó: ${quiz.difficulty || ''}` }]
+  let firstOfQuiz = true
+  for (const q of quiz.questions || []) {
+   console.log(`  ✍️ Câu ${q.index}: ${q.type} · ${q.points} điểm`)
+   step(`Examiner: soạn ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} · ${q.type} · ${q.points} điểm`)
+   // Ưu tiên nguồn web/tài liệu cho câu này, rồi chế lại về đúng loại (trắc nghiệm/điền/tự luận).
+   const detail = await generateQuizQuestion({ grade, subject, topic, globalContext: plan.globalContext, quiz, question: q, reference: finalReference })
+   let imageUrl = ''
+   if (detail.visual) {
+    step(`Artist: minh hoạ ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} (ưu tiên ảnh web, không có thì tự vẽ)`)
+    const img = path.join(outDir, 'images', `quiz${quiz.index}_cau${q.index}.png`)
+    try {
+     // Ưu tiên tải ảnh thật từ web trước; chỉ khi không có mới tự vẽ TikZ.
+     if (await fetchImage(`${topic} ${detail.visual}`, img)) { detail.imagePath = img; imageUrl = await readImageSourceUrl(img) }
+     else if (await drawTikzFigure(detail.visual, img)) { detail.imagePath = img }
+    } catch { /* hình không làm fail câu */ }
+   }
+   blocks.push(...quizQuestionBlocks(q, detail))
+   // 3) Chèn NGAY câu vừa xong vào Google Doc (không đợi hết bộ quiz).
+   if (gdoc) {
+    const ok = await appendQuizQuestion(gdoc.documentId, {
+     quizTitle: firstOfQuiz ? quizTitle : '',
+     index: q.index, points: q.points, type: q.type,
+     question: detail.question, options: detail.options,
+     hints: detail.hints, answer: detail.answer, solution: detail.solution,
+     imageUrl,
+    })
+    if (ok) step(`Word/GoogleDocs: đã chèn câu ${q.index} của ${quiz.title || `Quiz ${quiz.index}`} vào tài liệu`)
+   }
+   await buildWord({ title: `Bộ quiz ${topic}`, subject, grade, topic, sections: [...sections, { heading: quizTitle, blocks }] }, folder, false)
+   step(`Word: đã chèn câu ${q.index} của ${quiz.title || `Quiz ${quiz.index}`} vào file .docx nháp`)
+   firstOfQuiz = false
+  }
+  sections.push({ heading: quizTitle, blocks })
+ }
+ const wordPath = await buildWord({ title: `Bộ quiz ${topic}`, subject, grade, topic, sections }, folder)
+ step('Word: xuất file .docx bộ quiz')
+ await maybeUploadFiles([wordPath], folder)
+ console.log(`✅ Đã xuất bộ quiz: ${wordPath}`)
+ if (gdoc) console.log(`📝 Google Doc (chèn realtime): ${gdoc.url}`)
+ return wordPath
+}
+
+// Đọc URL ảnh nguồn (web) từ file <img>.json do imagefetcher ghi — dùng để chèn ảnh vào Google Doc.
+async function readImageSourceUrl(imgPath) {
+ try {
+  const meta = JSON.parse(await readFile(`${imgPath}.json`, 'utf8'))
+  const url = String(meta.url || '')
+  return /^https?:\/\//i.test(url) ? url : ''
+ } catch { return '' }
+}
+
+// Markdown khung câu hỏi các quiz (xuất trước khi soạn chi tiết).
+function renderQuizFrameMarkdown({ topic, grade, subject, totalScore, timeMinutes, plan }) {
+ const lines = [`# Khung câu hỏi — Bộ quiz ${topic}`, '', `- Môn: ${subject}`, `- Lớp: ${grade}`, `- Mỗi quiz: ${totalScore} điểm · ${timeMinutes} phút`, '']
+ if (plan.globalContext) lines.push(`> ${plan.globalContext}`, '')
+ for (const quiz of plan.quizzes || []) {
+  lines.push(`## ${quiz.title || `Quiz ${quiz.index}`} — ${quiz.difficulty || ''}`)
+  if (quiz.goal) lines.push(`*Mục tiêu:* ${quiz.goal}`)
+  for (const q of quiz.questions || []) {
+   lines.push(`- **Câu ${q.index}** (${q.points} điểm · ${q.type}): ${q.note || ''}${q.visual ? ` · hình: ${q.visual}` : ''}`)
+  }
+  lines.push('')
+ }
+ return lines.join('\n')
+}
+
+/** PIPELINE 2: tài liệu -> kiểm tra & nhận xét -> Word. */
+export async function runReview(filePath, grade, subject = 'Toán') {
+ console.log(`\n📖 Đọc tài liệu: ${filePath}`)
+ const text = await extractText(filePath)
+ if (!text.trim()) throw new Error('Tệp rỗng hoặc không đọc được nội dung.')
+ console.log(`🔍 Agent Thẩm định đang kiểm tra & nhận xét (chuẩn ${grade})...`)
+ const r = await reviewDocument(text, grade, subject)
+ console.log(`⚖️ Agent Judge đang đối chiếu ranh giới lớp học (${grade})...`)
+ const judge = await runJudge(text.slice(0, 16000), judgeBoundaries(grade, subject), grade)
+
+ const sections = []
+ sections.push({
+  heading: 'KIỂM ĐỊNH NHANH',
+  blocks: reviewSummaryBlocks(null, judge)
+ })
+ sections.push({
+  heading: 'NHẬN XÉT CHUNG',
+  blocks: [{ type: 'keypoint', title: `${r.verdict === 'FAIL' ? 'KHÔNG ĐẠT' : 'ĐẠT'}${r.score ? ` (${r.score})` : ''}`, text: r.overall || '(không có)' }]
+ })
+ if (r.blockingErrors?.length)
+  sections.push({ heading: 'LỖI CHẶN — BẮT BUỘC SỬA', blocks: [{ type: 'list', items: r.blockingErrors }] })
+ if (r.requiredFixes?.length)
+  sections.push({ heading: 'VIỆC BẮT BUỘC PHẢI SỬA', blocks: [{ type: 'list', items: r.requiredFixes }] })
+ if (r.strengths.length)
+  sections.push({ heading: 'ĐIỂM MẠNH', blocks: [{ type: 'list', items: r.strengths }] })
+ if (r.improvements.length)
+  sections.push({
+   heading: 'ĐIỂM CẦN CẢI THIỆN',
+   blocks: r.improvements.map((im, i) => ({
+    type: 'keypoint',
+    title: `Cần cải thiện ${i + 1}`,
+    text: `${im.issue || ''}${im.suggestion ? ' → Đề xuất: ' + im.suggestion : ''}`
+   }))
+  })
+ if (r.errors.length)
+  sections.push({ heading: 'LỖI KIẾN THỨC / VƯỢT CẤP / GÂY HIỂU NHẦM', blocks: [{ type: 'list', items: r.errors }] })
+ if (r.factualChecks?.length)
+  sections.push({ heading: 'KIỂM TRA SỰ THẬT / ĐÁP ÁN', blocks: [{ type: 'list', items: r.factualChecks.map(x => `${x.status}: ${x.item} — ${x.note || ''}`) }] })
+ if (r.gradeBoundaryChecks?.length)
+  sections.push({ heading: 'KIỂM TRA RANH GIỚI LỚP HỌC', blocks: [{ type: 'list', items: r.gradeBoundaryChecks.map(x => `${x.status}: ${x.item} — ${x.note || ''}`) }] })
+
+ const base = path.basename(filePath).replace(/\.[^.]+$/, '')
+ const docModel = { title: `Nhận xét tài liệu: ${base}`, subject, topic: base, grade, sections }
+ const folder = `REVIEW_G${gradeNum(grade)}_${dateStr()}_${slugify(base)}`
+ const wordPath = await buildWord(docModel, folder)
+ await maybeUploadFiles([wordPath], folder)
+ console.log(`\n✨ HOÀN TẤT! ${r.improvements.length} điểm cần cải thiện, ${r.errors.length} lỗi.`)
+ console.log(`📍 Word: ${wordPath}`)
+ return wordPath
+}

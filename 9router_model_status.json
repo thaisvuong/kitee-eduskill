@@ -1,167 +1,167 @@
 {
-  "ok": [
-    "gc/gemini-3.1-flash-lite-preview",
-    "gc/gemini-2.5-pro",
-    "gc/gemini-2.5-flash",
-    "gc/gemini-2.5-flash-lite",
-    "openrouter/tencent/hy3:free"
+ "ok": [
+  "gc/gemini-3.1-flash-lite-preview",
+  "gc/gemini-2.5-pro",
+  "gc/gemini-2.5-flash",
+  "gc/gemini-2.5-flash-lite",
+  "openrouter/tencent/hy3:free"
+ ],
+ "bad": [
+  [
+   "gemini/gemini-3.1-pro-preview",
+   "HTTP 429: {\"error\":{\"message\":\"[gemini/gemini-3.1-pro-preview] [429]: {\\n \\\"error\\\": {\\n "
   ],
-  "bad": [
-    [
-      "gemini/gemini-3.1-pro-preview",
-      "HTTP 429: {\"error\":{\"message\":\"[gemini/gemini-3.1-pro-preview] [429]: {\\n  \\\"error\\\": {\\n "
-    ],
-    [
-      "gemini/gemini-3.1-flash-lite-preview",
-      "HTTP 403: {\"error\":{\"message\":\"[gemini/gemini-3.1-flash-lite-preview] [403]: {\\n  \\\"error\\"
-    ],
-    [
-      "gemini/gemini-3-flash-preview",
-      "HTTP 403: {\"error\":{\"message\":\"[gemini/gemini-3-flash-preview] [403]: {\\n  \\\"error\\\": {\\n "
-    ],
-    [
-      "gemini/gemma-4-31b-it",
-      "HTTP 403: {\"error\":{\"message\":\"[gemini/gemma-4-31b-it] [403]: {\\n  \\\"error\\\": {\\n    \\\"cod"
-    ],
-    [
-      "gc/gemini-3.1-pro-preview",
-      "HTTP 404: {\"error\":{\"message\":\"[gemini-cli/gemini-3.1-pro-preview] [404]: {\\n  \\\"error\\\": "
-    ],
-    [
-      "gc/gemini-3-pro-preview",
-      "HTTP 404: {\"error\":{\"message\":\"[gemini-cli/gemini-3-pro-preview] [404]: {\\n  \\\"error\\\": {\\"
-    ],
-    [
-      "gc/gemini-3-flash-preview",
-      "HTTP 404: {\"error\":{\"message\":\"[gemini-cli/gemini-3-flash-preview] [404]: {\\n  \\\"error\\\": "
-    ],
-    [
-      "cx/gpt-5.6-sol",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-sol] [429]: The usage limit has been reached"
-    ],
-    [
-      "cx/gpt-5.6-sol-review",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-sol-review] [429]: The usage limit has been "
-    ],
-    [
-      "cx/gpt-5.6-terra",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-terra] [429]: The usage limit has been reach"
-    ],
-    [
-      "cx/gpt-5.6-terra-review",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-terra-review] [429]: The usage limit has bee"
-    ],
-    [
-      "cx/gpt-5.6-luna",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-luna] [429]: The usage limit has been reache"
-    ],
-    [
-      "cx/gpt-5.6-luna-review",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-luna-review] [429]: The usage limit has been"
-    ],
-    [
-      "cx/gpt-5.5",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.5] [429]: The usage limit has been reached (re"
-    ],
-    [
-      "cx/gpt-5.5-review",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.5-review] [429]: The usage limit has been reac"
-    ],
-    [
-      "cx/gpt-5.4",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.4] [429]: The usage limit has been reached (re"
-    ],
-    [
-      "cx/gpt-5.4-review",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.4-review] [429]: The usage limit has been reac"
-    ],
-    [
-      "cx/gpt-5.4-mini",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.4-mini] [429]: The usage limit has been reache"
-    ],
-    [
-      "cx/gpt-5.4-mini-review",
-      "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.4-mini-review] [429]: The usage limit has been"
-    ],
-    [
-      "cx/gpt-5.3-codex-spark",
-      "HTTP 400: {\"error\":{\"message\":\"[codex/gpt-5.3-codex-spark] [400]: {\\\"detail\\\":\\\"The 'gpt-5"
-    ],
-    [
-      "cx/gpt-5.3-codex-spark-review",
-      "HTTP 400: {\"error\":{\"message\":\"[codex/gpt-5.3-codex-spark-review] [400]: {\\\"detail\\\":\\\"The"
-    ],
-    [
-      "cc/claude-fable-5",
-      "HTTP 429: {\"error\":{\"message\":\"[claude/claude-fable-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\"
-    ],
-    [
-      "cc/claude-sonnet-5",
-      "HTTP 429: {\"error\":{\"message\":\"[claude/claude-sonnet-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error"
-    ],
-    [
-      "cc/claude-opus-4-8",
-      "HTTP 429: {\"error\":{\"message\":\"[claude/claude-opus-4-8] [429]: {\\\"type\\\":\\\"error\\\",\\\"error"
-    ],
-    [
-      "cc/claude-opus-4-7",
-      "HTTP 429: {\"error\":{\"message\":\"[claude/claude-opus-4-7] [429]: {\\\"type\\\":\\\"error\\\",\\\"error"
-    ],
-    [
-      "cc/claude-haiku-4-5-20251001",
-      "HTTP 429: {\"error\":{\"message\":\"[claude/claude-haiku-4-5-20251001] [429]: {\\\"type\\\":\\\"error"
-    ],
-    [
-      "openrouter/qwen/qwen3-coder:free",
-      "HTTP 429: {\"error\":{\"message\":\"[openrouter/qwen/qwen3-coder:free] [429]: {\\\"error\\\":{\\\"mes"
-    ],
-    [
-      "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-      "HTTP 429: {\"error\":{\"message\":\"[openrouter/nvidia/nemotron-3-ultra-550b-a55b:free] [429]: "
-    ],
-    [
-      "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
-      "HTTP 429: {\"error\":{\"message\":\"[openrouter/nvidia/nemotron-3-super-120b-a12b:free] [429]: "
-    ],
-    [
-      "openrouter/poolside/laguna-xs-2.1:free",
-      "HTTP 429: {\"error\":{\"message\":\"[openrouter/poolside/laguna-xs-2.1:free] [429]: {\\\"error\\\":"
-    ],
-    [
-      "openrouter/poolside/laguna-xs.2:free",
-      "HTTP 404: {\"error\":{\"message\":\"[openrouter/poolside/laguna-xs.2:free] [404]: {\\\"error\\\":{\\"
-    ],
-    [
-      "openrouter/poolside/laguna-m.1:free",
-      "HTTP 429: {\"error\":{\"message\":\"[openrouter/poolside/laguna-m.1:free] [429]: {\\\"error\\\":{\\\""
-    ],
-    [
-      "openrouter/google/gemma-4-26b-a4b-it:free",
-      "HTTP 429: {\"error\":{\"message\":\"[openrouter/google/gemma-4-26b-a4b-it:free] [429]: {\\\"error"
-    ],
-    [
-      "openrouter/google/gemma-4-31b-it:free",
-      "HTTP 429: {\"error\":{\"message\":\"[openrouter/google/gemma-4-31b-it:free] [429]: {\\\"error\\\":{"
-    ],
-    [
-      "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
-      "HTTP 404: {\"error\":{\"message\":\"[openrouter/qwen/qwen3-next-80b-a3b-instruct:free] [404]: {"
-    ],
-    [
-      "openrouter/cohere/north-mini-code:free",
-      "HTTP 404: {\"error\":{\"message\":\"[openrouter/cohere/north-mini-code:free] [404]: {\\\"error\\\":"
-    ],
-    [
-      "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-      "HTTP 404: {\"error\":{\"message\":\"[openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:f"
-    ],
-    [
-      "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
-      "HTTP 404: {\"error\":{\"message\":\"[openrouter/nvidia/nemotron-3-nano-30b-a3b:free] [404]: {\\\""
-    ],
-    [
-      "openrouter/openrouter/free",
-      "HTTP 404: {\"error\":{\"message\":\"[openrouter/openrouter/free] [404]: {\\\"error\\\":{\\\"message\\\""
-    ]
+  [
+   "gemini/gemini-3.1-flash-lite-preview",
+   "HTTP 403: {\"error\":{\"message\":\"[gemini/gemini-3.1-flash-lite-preview] [403]: {\\n \\\"error\\"
+  ],
+  [
+   "gemini/gemini-3-flash-preview",
+   "HTTP 403: {\"error\":{\"message\":\"[gemini/gemini-3-flash-preview] [403]: {\\n \\\"error\\\": {\\n "
+  ],
+  [
+   "gemini/gemma-4-31b-it",
+   "HTTP 403: {\"error\":{\"message\":\"[gemini/gemma-4-31b-it] [403]: {\\n \\\"error\\\": {\\n  \\\"cod"
+  ],
+  [
+   "gc/gemini-3.1-pro-preview",
+   "HTTP 404: {\"error\":{\"message\":\"[gemini-cli/gemini-3.1-pro-preview] [404]: {\\n \\\"error\\\": "
+  ],
+  [
+   "gc/gemini-3-pro-preview",
+   "HTTP 404: {\"error\":{\"message\":\"[gemini-cli/gemini-3-pro-preview] [404]: {\\n \\\"error\\\": {\\"
+  ],
+  [
+   "gc/gemini-3-flash-preview",
+   "HTTP 404: {\"error\":{\"message\":\"[gemini-cli/gemini-3-flash-preview] [404]: {\\n \\\"error\\\": "
+  ],
+  [
+   "cx/gpt-5.6-sol",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-sol] [429]: The usage limit has been reached"
+  ],
+  [
+   "cx/gpt-5.6-sol-review",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-sol-review] [429]: The usage limit has been "
+  ],
+  [
+   "cx/gpt-5.6-terra",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-terra] [429]: The usage limit has been reach"
+  ],
+  [
+   "cx/gpt-5.6-terra-review",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-terra-review] [429]: The usage limit has bee"
+  ],
+  [
+   "cx/gpt-5.6-luna",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-luna] [429]: The usage limit has been reache"
+  ],
+  [
+   "cx/gpt-5.6-luna-review",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.6-luna-review] [429]: The usage limit has been"
+  ],
+  [
+   "cx/gpt-5.5",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.5] [429]: The usage limit has been reached (re"
+  ],
+  [
+   "cx/gpt-5.5-review",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.5-review] [429]: The usage limit has been reac"
+  ],
+  [
+   "cx/gpt-5.4",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.4] [429]: The usage limit has been reached (re"
+  ],
+  [
+   "cx/gpt-5.4-review",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.4-review] [429]: The usage limit has been reac"
+  ],
+  [
+   "cx/gpt-5.4-mini",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.4-mini] [429]: The usage limit has been reache"
+  ],
+  [
+   "cx/gpt-5.4-mini-review",
+   "HTTP 429: {\"error\":{\"message\":\"[codex/gpt-5.4-mini-review] [429]: The usage limit has been"
+  ],
+  [
+   "cx/gpt-5.3-codex-spark",
+   "HTTP 400: {\"error\":{\"message\":\"[codex/gpt-5.3-codex-spark] [400]: {\\\"detail\\\":\\\"The 'gpt-5"
+  ],
+  [
+   "cx/gpt-5.3-codex-spark-review",
+   "HTTP 400: {\"error\":{\"message\":\"[codex/gpt-5.3-codex-spark-review] [400]: {\\\"detail\\\":\\\"The"
+  ],
+  [
+   "cc/claude-fable-5",
+   "HTTP 429: {\"error\":{\"message\":\"[claude/claude-fable-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error\\"
+  ],
+  [
+   "cc/claude-sonnet-5",
+   "HTTP 429: {\"error\":{\"message\":\"[claude/claude-sonnet-5] [429]: {\\\"type\\\":\\\"error\\\",\\\"error"
+  ],
+  [
+   "cc/claude-opus-4-8",
+   "HTTP 429: {\"error\":{\"message\":\"[claude/claude-opus-4-8] [429]: {\\\"type\\\":\\\"error\\\",\\\"error"
+  ],
+  [
+   "cc/claude-opus-4-7",
+   "HTTP 429: {\"error\":{\"message\":\"[claude/claude-opus-4-7] [429]: {\\\"type\\\":\\\"error\\\",\\\"error"
+  ],
+  [
+   "cc/claude-haiku-4-5-20251001",
+   "HTTP 429: {\"error\":{\"message\":\"[claude/claude-haiku-4-5-20251001] [429]: {\\\"type\\\":\\\"error"
+  ],
+  [
+   "openrouter/qwen/qwen3-coder:free",
+   "HTTP 429: {\"error\":{\"message\":\"[openrouter/qwen/qwen3-coder:free] [429]: {\\\"error\\\":{\\\"mes"
+  ],
+  [
+   "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+   "HTTP 429: {\"error\":{\"message\":\"[openrouter/nvidia/nemotron-3-ultra-550b-a55b:free] [429]: "
+  ],
+  [
+   "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+   "HTTP 429: {\"error\":{\"message\":\"[openrouter/nvidia/nemotron-3-super-120b-a12b:free] [429]: "
+  ],
+  [
+   "openrouter/poolside/laguna-xs-2.1:free",
+   "HTTP 429: {\"error\":{\"message\":\"[openrouter/poolside/laguna-xs-2.1:free] [429]: {\\\"error\\\":"
+  ],
+  [
+   "openrouter/poolside/laguna-xs.2:free",
+   "HTTP 404: {\"error\":{\"message\":\"[openrouter/poolside/laguna-xs.2:free] [404]: {\\\"error\\\":{\\"
+  ],
+  [
+   "openrouter/poolside/laguna-m.1:free",
+   "HTTP 429: {\"error\":{\"message\":\"[openrouter/poolside/laguna-m.1:free] [429]: {\\\"error\\\":{\\\""
+  ],
+  [
+   "openrouter/google/gemma-4-26b-a4b-it:free",
+   "HTTP 429: {\"error\":{\"message\":\"[openrouter/google/gemma-4-26b-a4b-it:free] [429]: {\\\"error"
+  ],
+  [
+   "openrouter/google/gemma-4-31b-it:free",
+   "HTTP 429: {\"error\":{\"message\":\"[openrouter/google/gemma-4-31b-it:free] [429]: {\\\"error\\\":{"
+  ],
+  [
+   "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
+   "HTTP 404: {\"error\":{\"message\":\"[openrouter/qwen/qwen3-next-80b-a3b-instruct:free] [404]: {"
+  ],
+  [
+   "openrouter/cohere/north-mini-code:free",
+   "HTTP 404: {\"error\":{\"message\":\"[openrouter/cohere/north-mini-code:free] [404]: {\\\"error\\\":"
+  ],
+  [
+   "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+   "HTTP 404: {\"error\":{\"message\":\"[openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:f"
+  ],
+  [
+   "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
+   "HTTP 404: {\"error\":{\"message\":\"[openrouter/nvidia/nemotron-3-nano-30b-a3b:free] [404]: {\\\""
+  ],
+  [
+   "openrouter/openrouter/free",
+   "HTTP 404: {\"error\":{\"message\":\"[openrouter/openrouter/free] [404]: {\\\"error\\\":{\\\"message\\\""
   ]
+ ]
 }

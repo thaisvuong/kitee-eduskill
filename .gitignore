@@ -7,6 +7,8 @@ build
 .env*.local
 *.log
 .DS_Store
+__pycache__/
+*.pyc
 tsconfig.tsbuildinfo
 next-env.d.ts
 Output/
@@ -15,6 +17,9 @@ coverage
 # Không bao giờ commit credential / OAuth
 google_token.json
 google_client_secret.json
+google_oauth.json
+google_oauth_pending_web.json
 *_secret.json
 *token*.json
 settings.json
+.hermes/desktop-attachments/

@@ -1,4 +1,4 @@
-# Kitee eduSkill — cài đặt 1 lệnh
+# KientreAAA — cài đặt 1 lệnh
 
 Ứng dụng web soạn tài liệu/đề kiểm tra/lời giải/nhận xét bằng AI. Bạn chỉ cần:
 - 1 máy Mac/Linux có internet
@@ -7,8 +7,8 @@
 ## Cài đặt (1 lệnh)
 
 ```bash
-git clone https://github.com/thaisvuong/kitee-eduskill.git
-cd kitee-eduskill
+git clone https://github.com/thaisvuong/kientreaaa.git
+cd kientreaaa
 ./install.sh
 ```
 
@@ -16,9 +16,9 @@ Script sẽ:
 
 1. Cài **Node.js 22 LTS** (nếu chưa có)
 2. Cài **9router** — cổng LLM để nhập key AI
-3. Cài & build **Kitee web app**
+3. Cài & build **Kientre web app**
 4. Mở trình duyệt vào giao diện 9router để bạn dán API key
-5. Khởi động Kitee tại `http://localhost:3100`
+5. Khởi động Kientre tại `http://localhost:3100`
 
 ## Sau khi cài xong
 
