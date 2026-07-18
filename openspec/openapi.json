@@ -1,0 +1,354 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KientreAAA Local API",
+    "version": "0.1.0",
+    "description": "Local Next.js API for KientreAAA education workflows. Secrets are accepted only through local server routes and are never returned raw."
+  },
+  "servers": [
+    { "url": "http://localhost:3100", "description": "Local standalone server" }
+  ],
+  "tags": [
+    { "name": "Runtime" },
+    { "name": "Agent" },
+    { "name": "Files" },
+    { "name": "Settings" },
+    { "name": "Workspace" },
+    { "name": "Google" },
+    { "name": "NotebookLM" }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["Runtime"],
+        "summary": "Return app health and effective local config",
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/api/models": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "List available LLM models from router and configured direct providers",
+        "parameters": [{ "$ref": "#/components/parameters/Router" }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "Read masked app settings",
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "tags": ["Settings"],
+        "summary": "Update whitelisted settings and per-module config",
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/api/run": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "Run a slash-command engine job and stream SSE logs",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["jobId", "command"],
+                "properties": {
+                  "jobId": { "type": "string" },
+                  "command": { "type": "string", "examples": ["/es-create phân số lớp 4"] },
+                  "settings": { "$ref": "#/components/schemas/RunSettings" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/EventStream" } }
+      },
+      "delete": {
+        "tags": ["Agent"],
+        "summary": "Cancel a slash-command job",
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "404": { "$ref": "#/components/responses/JsonError" } }
+      }
+    },
+    "/api/agent": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "Run module mini-agent and stream SSE steps",
+        "description": "Quiz settings are treated as hard contracts. When Drive upload is enabled, quiz jobs also create/update Google Docs and upload final DOCX/converted Docs to the selected Drive folder.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["jobId", "task"],
+                "properties": {
+                  "jobId": { "type": "string" },
+                  "task": { "type": "string" },
+                  "moduleKey": { "$ref": "#/components/schemas/ModuleKey" },
+                  "history": { "type": "array", "items": { "type": "object" } },
+                  "settings": { "$ref": "#/components/schemas/RunSettings" },
+                  "sessionId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/EventStream" } }
+      },
+      "delete": {
+        "tags": ["Agent"],
+        "summary": "Cancel a mini-agent job",
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "404": { "$ref": "#/components/responses/JsonError" } }
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "Return quick chat guidance or built command text",
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/api/memory-chat": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "Answer status/session-memory questions without starting a module flow",
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/api/upload": {
+      "post": {
+        "tags": ["Files"],
+        "summary": "Upload a local source file into Output/_uploads",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "outputDir": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" }, "403": { "$ref": "#/components/responses/JsonError" }, "413": { "$ref": "#/components/responses/JsonError" } }
+      }
+    },
+    "/api/files": {
+      "get": {
+        "tags": ["Files"],
+        "summary": "List output files or preview/download one DOCX/PDF",
+        "parameters": [
+          { "name": "root", "in": "query", "schema": { "type": "string" } },
+          { "name": "preview", "in": "query", "schema": { "type": "string" } },
+          { "name": "download", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "JSON list, HTML preview, or file stream" }, "403": { "$ref": "#/components/responses/JsonError" }, "404": { "$ref": "#/components/responses/JsonError" } }
+      },
+      "delete": {
+        "tags": ["Files"],
+        "summary": "Delete an output file by relative path",
+        "parameters": [
+          { "name": "root", "in": "query", "schema": { "type": "string" } },
+          { "name": "rel", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "403": { "$ref": "#/components/responses/JsonError" }, "404": { "$ref": "#/components/responses/JsonError" } }
+      }
+    },
+    "/api/file": {
+      "get": {
+        "tags": ["Files"],
+        "summary": "Read an editable engine/skill file",
+        "parameters": [{ "$ref": "#/components/parameters/Path" }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "403": { "$ref": "#/components/responses/JsonError" } }
+      },
+      "put": {
+        "tags": ["Files"],
+        "summary": "Overwrite an existing editable engine/skill file",
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "403": { "$ref": "#/components/responses/JsonError" }, "413": { "$ref": "#/components/responses/JsonError" } }
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "List sessions, get one session, optionally include module queue jobs",
+        "parameters": [
+          { "name": "id", "in": "query", "schema": { "type": "string" } },
+          { "name": "module", "in": "query", "schema": { "$ref": "#/components/schemas/ModuleKey" } },
+          { "name": "includeJobs", "in": "query", "schema": { "type": "string", "enum": ["0", "1"] } }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "tags": ["Workspace"],
+        "summary": "Create/update sessions or remove/clear queue jobs",
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "404": { "$ref": "#/components/responses/JsonError" } }
+      },
+      "delete": {
+        "tags": ["Workspace"],
+        "summary": "Delete a session",
+        "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/api/session-memory": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "Read stored memory summary for a session",
+        "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/api/sources": {
+      "get": { "tags": ["Workspace"], "summary": "List reference sources", "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } },
+      "post": { "tags": ["Workspace"], "summary": "Create or update a reference source", "requestBody": { "$ref": "#/components/requestBodies/JsonBody" }, "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } },
+      "delete": { "tags": ["Workspace"], "summary": "Delete a reference source", "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } }
+    },
+    "/api/skills": {
+      "get": { "tags": ["Workspace"], "summary": "List default and custom prompt-pack skills", "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } },
+      "post": { "tags": ["Workspace"], "summary": "Create or update a prompt-pack skill", "requestBody": { "$ref": "#/components/requestBodies/JsonBody" }, "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } },
+      "delete": { "tags": ["Workspace"], "summary": "Delete a custom skill override", "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } }
+    },
+    "/api/google-auth": {
+      "get": {
+        "tags": ["Google"],
+        "summary": "Read masked Google OAuth status",
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "tags": ["Google"],
+        "summary": "Save OAuth JSON, create auth URL, exchange code, or verify Drive access",
+        "description": "Raw OAuth JSON may be accepted in request body but raw credentials are never returned. Supported actions: auth-url, auth-code, verify; omit action to save credential JSON.",
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" } }
+      }
+    },
+    "/api/drive-folder": {
+      "get": {
+        "tags": ["Google"],
+        "summary": "Resolve a Drive folder/file id to metadata",
+        "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" } }
+      }
+    },
+    "/api/notebooklm": {
+      "get": {
+        "tags": ["NotebookLM"],
+        "summary": "List notebooks or fetch NotebookLM status/sources",
+        "parameters": [
+          { "name": "action", "in": "query", "schema": { "type": "string", "enum": ["list", "status", "sources"] } },
+          { "name": "notebookId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" } }
+      },
+      "post": {
+        "tags": ["NotebookLM"],
+        "summary": "Proxy NotebookLM actions through kientre_notebooklm.py",
+        "description": "Actions include ask, list-full, create, delete, rename, summary, metadata, source-add, source-refresh, artifact generation/download, and note/research/share operations.",
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" } }
+      }
+    },
+    "/api/kientre-info": {
+      "get": {
+        "tags": ["Runtime"],
+        "summary": "List Kientre engine agents, server modules, and relevant skills",
+        "parameters": [
+          { "name": "engineDir", "in": "query", "schema": { "type": "string" } },
+          { "name": "hermesHome", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/api/update": {
+      "get": { "tags": ["Runtime"], "summary": "Check local git update status against origin/main", "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "500": { "$ref": "#/components/responses/JsonError" } } },
+      "post": { "tags": ["Runtime"], "summary": "Run safe ff-only update, install, and build", "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "500": { "$ref": "#/components/responses/JsonError" } } }
+    }
+  },
+  "components": {
+    "parameters": {
+      "JobId": { "name": "jobId", "in": "query", "required": true, "schema": { "type": "string" } },
+      "Path": { "name": "path", "in": "query", "required": true, "schema": { "type": "string" } },
+      "Router": { "name": "router", "in": "query", "schema": { "type": "string", "format": "uri" } }
+    },
+    "requestBodies": {
+      "JsonBody": {
+        "required": true,
+        "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } }
+      }
+    },
+    "responses": {
+      "JsonOk": {
+        "description": "JSON response with ok boolean",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OkResponse" } } }
+      },
+      "JsonError": {
+        "description": "JSON error response",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+      },
+      "EventStream": {
+        "description": "Server-Sent Events stream",
+        "content": {
+          "text/event-stream": {
+            "schema": { "type": "string" },
+            "examples": {
+              "event": { "value": "event: start\ndata: {\"jobId\":\"job_1\"}\n\nevent: done\ndata: {\"code\":0}\n\n" }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ModuleKey": { "type": "string", "enum": ["topic", "quiz", "test", "solve", "review"] },
+      "RunSettings": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "module": { "$ref": "#/components/schemas/ModuleKey" },
+          "outputDir": { "type": "string" },
+          "workspaceDir": { "type": "string" },
+          "engineDir": { "type": "string" },
+          "hermesHome": { "type": "string" },
+          "googleCredentialFile": { "type": "string" },
+          "routerBaseUrl": { "type": "string" },
+          "defaultWorkerModel": { "type": "string" },
+          "driveFolderId": { "type": "string", "description": "Raw folder id or Google Drive folder URL. Server normalizes it before use." },
+          "uploadDrive": { "type": "boolean" },
+          "quizCount": { "type": "integer", "minimum": 1, "maximum": 20 },
+          "quizTotalScore": { "type": "number" },
+          "quizTimeMinutes": { "type": "integer", "minimum": 1 },
+          "agentModels": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      },
+      "OkResponse": {
+        "type": "object",
+        "required": ["ok"],
+        "properties": { "ok": { "type": "boolean" } },
+        "additionalProperties": true
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["ok", "error"],
+        "properties": {
+          "ok": { "type": "boolean", "const": false },
+          "error": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}
