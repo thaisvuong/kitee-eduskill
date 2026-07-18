@@ -40,12 +40,15 @@ export async function generateQuizQuestion(o, model = process.env.HERMES_EXAMINE
 Môn/lớp/chủ đề: ${subject} ${grade}, ${topic}
 Context chung: ${globalContext}
 Quiz: ${quiz.title || `Quiz ${quiz.index}`} · độ khó ${quiz.difficulty || ''} · mục tiêu ${quiz.goal || ''}
-Khung câu: Câu ${question.index}, loại ${question.type}, ${question.points} điểm, note: ${question.note || ''}
+Khung câu ĐÃ LẤY TỪ FILE khung.md: Câu ${question.index}, loại ${question.type}, ${question.points} điểm, note: ${question.note || ''}
 Yêu cầu hình: ${question.visual || 'không bắt buộc'}${ref}
 
+Không được tự chọn câu khác. Phải triển khai đúng note khung câu đã lấy ở trên.
 Ưu tiên: nếu có NGUỒN/TÀI LIỆU tham chiếu ở trên, hãy BÁM theo bài tập/dạng câu trong nguồn và CHẾ LẠI về đúng loại "${question.type}" (trắc nghiệm 4 lựa chọn / điền đáp án / tự luận). Không bịa nếu nguồn đã có dạng phù hợp.
+Câu hỏi phải khó hơn mức cơ bản, có bẫy hợp lệ theo note/độ khó QuizPlanner giao. Ưu tiên bẫy: dữ kiện thừa, phương án nhiễu rất gần đúng, nhầm đơn vị, nhầm thứ tự phép tính, nhầm điều kiện, nhầm khái niệm, nhầm đọc hình. Bẫy phải công bằng, không mơ hồ.
 Trả về: question, options (nếu trắc nghiệm), answer, hints, solution, visual.
 BẮT BUỘC: đúng 3 gợi ý (hints) theo hướng dẫn từng bước. Mỗi hint tự nhiên như "Gợi ý 1: ...", "Gợi ý 2: ...", "Gợi ý 3: ..." (không viết đáp án trong gợi ý). Tự luận phải có lời giải chi tiết và điểm từng ý.
+Với trắc nghiệm: 4 phương án A/B/C/D phải đều có vẻ hợp lý; ít nhất 2 phương án sai phải là lỗi học sinh thường mắc.
 visual phải là mô tả hình toán học cụ thể để tìm đúng ảnh nguồn hoặc tự vẽ: nêu đối tượng, nhãn điểm, quan hệ hình học; không mô tả ảnh người/ảnh trang trí.
 
 JSON: {"question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"answer":"...","hints":["...","...","..."],"solution":"...","visual":"..."}`

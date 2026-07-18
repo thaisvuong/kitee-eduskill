@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { buildCreateCommand, buildTestCommand } from '@/lib/kientreEngine/commands'
+import { quickChatReply } from '@/lib/quickChat'
 
 interface ChatBody { message?: string; settings?: Record<string, any> }
 
@@ -28,7 +29,10 @@ export async function POST(req: Request) {
 
  let reply = ''
  try {
-  if (/es-create|tạo chuyên đề/i.test(low)) {
+  const quick = quickChatReply(t, settings)
+  if (quick) {
+   reply = quick
+  } else if (/es-create|tạo chuyên đề/i.test(low)) {
    const cmd = buildCreateCommand({ topic: parseTopic(t), grade: parseGrade(t), subject: parseSubject(t), summary })
    reply = `Đã dựng lệnh Kientre:\n\n\`${cmd}\`\n\nKết quả sẽ lưu vào: ${settings.outputDir || 'Kientre/Output'}`
   } else if (/es-test|tạo đề|đề kiểm tra/i.test(low)) {

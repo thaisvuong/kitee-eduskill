@@ -31,8 +31,10 @@ ${String(sessionContext?.memory?.summary || sessionContext?.fullText || '').slic
 Tin nhắn người dùng: """${task}"""
 
 Quy tắc:
-- runFlow=true nếu người dùng yêu cầu tạo quiz/chuyên đề/đề kiểm tra/giải file/review file/xuất Word hoặc có output rõ.
-- runFlow=false nếu chỉ chào hỏi, hỏi help, hỏi app làm gì, hỏi đang làm task nào, hỏi nhớ gì trong phiên, cảm ơn, test chat, hoặc chỉ muốn trả lời ngắn.
+- runFlow=true chỉ khi người dùng dùng động từ hành động rõ: soạn/tạo/lập/xuất/viết file Word/Docx/PDF/tạo quiz/tạo đề kiểm tra/giải file/review file/xử lý file, hoặc có output tài liệu rõ.
+- runFlow=false nếu người dùng chỉ hỏi đáp nhanh, hỏi kiến thức, hỏi danh sách, hỏi "là gì", "gồm những gì", "có những", "kể tên", "liệt kê", "chủ điểm/chủ đề nào", chào hỏi, hỏi help, hỏi app làm gì, hỏi đang làm task nào, hỏi nhớ gì trong phiên, cảm ơn, test chat, hoặc chỉ muốn trả lời ngắn.
+- Ví dụ runFlow=false: "Các chủ điểm khoa học trong lớp 5", "Khoa học lớp 5 gồm những chủ đề nào?", "Liệt kê các dạng toán phân số lớp 5".
+- Ví dụ runFlow=true: "Soạn quiz phân số lớp 5", "Tạo đề kiểm tra khoa học lớp 5", "Xuất Word chuyên đề phân số".
 - Khi runFlow=false, reply phải dùng bộ nhớ/job đang chạy nếu liên quan; trả lời như người đang nhớ cuộc trò chuyện, không nói chung chung.
 - reply: câu trả lời chatbot bình thường khi runFlow=false.
 - reason: giải thích ngắn quyết định.

@@ -54,6 +54,18 @@ async function collectResultFiles(root: string, created: string[]) {
  return out
 }
 
+function collectLoggedDocxPaths(lines: string[], outputDir: string) {
+ const root = path.resolve(outputDir)
+ const found = new Set<string>()
+ for (const line of lines) {
+  const m = String(line).match(/📍\s*Word:\s*(.+\.docx)\s*$/i)
+  if (!m) continue
+  const full = path.resolve(m[1].trim())
+  if (full === root || full.startsWith(root + path.sep)) found.add(full)
+ }
+ return [...found]
+}
+
 // Provider API keys live only in the server-side settings file (never sent by the client).
 // Read them here and map to the env vars the engine's llm.mjs expects.
 async function readProviderKeyEnv(hermesHome: string): Promise<Record<string, string>> {
@@ -167,6 +179,7 @@ export async function POST(req: Request) {
 
    const routerBaseUrl = settings.routerBaseUrl || kientreConfig.routerBaseUrl
    const providerKeyEnv = await readProviderKeyEnv(settings.hermesHome || kientreConfig.hermesHome)
+   const moduleDriveFolderId = settings.driveFolderId || settings.driveParentId || kientreConfig.driveParentId
    const env = {
     ...process.env,
     ...providerKeyEnv,
@@ -175,7 +188,8 @@ export async function POST(req: Request) {
     KIENTRE_OUTPUT_DIR: outputDir,
     HERMES_HOME: settings.hermesHome || kientreConfig.hermesHome,
     GOOGLE_OAUTH_JSON: settings.googleCredentialFile || kientreConfig.googleCredentialFile,
-    HERMES_DRIVE_PARENT_ID: settings.driveParentId || kientreConfig.driveParentId,
+    HERMES_DRIVE_PARENT_ID: moduleDriveFolderId,
+    KIENTRE_DRIVE_FOLDER_ID: moduleDriveFolderId,
     NINE_ROUTER_BASE_URL: routerBaseUrl,
     NINEROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
     HERMES_ROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
@@ -189,12 +203,13 @@ export async function POST(req: Request) {
    RUNNING.set(jobId, child)
    let buf = ''
    let cancelled = false
+   const allLines: string[] = []
 
    const onData = (chunk: Buffer) => {
     buf += chunk.toString()
     const lines = buf.split('\n')
     buf = lines.pop() ?? ''
-    for (const l of lines) if (l.trim()) sse(controller, 'log', { line: l, jobId })
+    for (const l of lines) if (l.trim()) { allLines.push(l); sse(controller, 'log', { line: l, jobId }) }
    }
    child.stdout.on('data', onData)
    child.stderr.on('data', onData)
@@ -210,7 +225,7 @@ export async function POST(req: Request) {
     const after = await snapshotOutput(outputDir)
     const created = [...after].filter(x => !before.has(x))
     const hermesHome = settings.hermesHome || kientreConfig.hermesHome
-    const driveParentId = settings.driveParentId || kientreConfig.driveParentId
+    const driveParentId = moduleDriveFolderId
     if (cancelled || signal === 'SIGTERM') {
      sse(controller, 'done', { code: 130, cancelled: true, created, outputDir, jobId })
     } else {
@@ -218,8 +233,9 @@ export async function POST(req: Request) {
      const driveFolderId = settings.driveFolderId || settings.driveParentId || driveParentId
      const tokenFile = settings.googleCredentialFile || kientreConfig.googleCredentialFile || path.join(hermesHome, 'google_oauth.json')
      if ((code ?? 1) === 0 && settings.uploadDrive && driveFolderId) {
-      const allFiles = await collectResultFiles(outputDir, created)
-      const docxFiles = allFiles.filter(f => /\.docx$/i.test(f))
+      const createdFiles = await collectResultFiles(outputDir, created)
+      const loggedFiles = collectLoggedDocxPaths(allLines, outputDir)
+      const docxFiles = [...new Set([...createdFiles, ...loggedFiles])].filter(f => /\.docx$/i.test(f))
       if (docxFiles.length) {
        sse(controller, 'log', { line: `☁️ Đang tải ${docxFiles.length} file .docx lên Google Drive + chuyển Google Docs...`, jobId })
        const res = await uploadDocxToDrive(docxFiles, driveFolderId, tokenFile, engineDir, true)

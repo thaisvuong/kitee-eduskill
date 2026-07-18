@@ -38,6 +38,7 @@ function defaultModule() {
   model: kientreConfig.defaultWorkerModel,
   driveFolderId: kientreConfig.driveParentId,
   driveFolderUrl: kientreConfig.driveParentId ? 'https://drive.google.com/drive/folders/' + kientreConfig.driveParentId : '',
+  driveFolderName: '',
   useSummary: kientreConfig.defaultSummary,
   uploadDrive: false,
   mode: 'detail',

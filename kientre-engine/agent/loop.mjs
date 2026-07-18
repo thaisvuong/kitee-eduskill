@@ -23,7 +23,7 @@ function buildSystem(config) {
  }
  parts.push(`## Cân bằng mức độ bài tập\n${config.difficultyBalancing || 'Dựa trên toàn bộ phiên, tạo bài dễ/vừa/khó cân bằng và điều chỉnh theo phản hồi người dùng.'}`)
  if (config.quizSpec) {
-  parts.push(`## Module soạn quiz theo chuyên đề\nTạo ${config.quizSpec.quizCount} quiz cho mỗi chuyên đề, cấp độ 1→5 tăng dần. Mỗi quiz có trắc nghiệm, điền đáp án, tự luận. Tổng điểm mỗi quiz: ${config.quizSpec.totalScore}. Thời gian cho phép: ${config.quizSpec.timeMinutes} phút; dùng Student agent để ước lượng học sinh có hoàn thành được không. Tự luận phải có lời giải chi tiết và điểm từng ý. Dùng lại cách lập dàn ý/nguồn/thẩm định của module soạn chuyên đề.`)
+  parts.push(`## Module soạn quiz theo chuyên đề\nTạo ĐÚNG ${config.quizSpec.quizCount} quiz theo số lượng UI, không mặc định 5 quiz/cấp độ 1→5. Mỗi quiz có trắc nghiệm, điền đáp án, tự luận. Tổng điểm mỗi quiz: ${config.quizSpec.totalScore}. Thời gian cho phép: ${config.quizSpec.timeMinutes} phút; tự luận phải có lời giải chi tiết và điểm từng ý.`)
  }
  return parts.filter(Boolean).join('\n\n')
 }
@@ -105,7 +105,7 @@ export async function runAgent({ task, config = {}, sources = [], history = [], 
   : canWebSearch
    ? `\n\n## Nguồn web\nKhông có NotebookLM/tài liệu riêng. Phải ưu tiên web_search để tìm nguồn tài liệu/bài tập thật rồi gọi run_skill. Nếu cần hình minh họa, Artist/ImageFetcher lấy ảnh thật từ nguồn web/Openverse/Wikimedia; chỉ dùng tạo ảnh 9Router khi biến KIENTRE_ALLOW_IMAGE_GENERATION được bật rõ.`
    : `\n\n## Không dùng nguồn ngoài\nNgười dùng KHÔNG bật NotebookLM và không nạp tài liệu riêng. TỰ soạn theo chuyên đề, KHÔNG gọi web_search/read_source/read_notebook. Đi thẳng vào run_skill.`
- const forceSkill = skill ? `\n\n## Bắt buộc dùng flow đã thiết lập\n${canWebSearch ? 'BƯỚC ĐẦU gọi web_search để lấy nguồn thật, rồi gọi run_skill' : 'NGAY BƯỚC ĐẦU gọi tool run_skill'} với skill="${skill}" để tạo file Word đầy đủ. ${config.moduleKey === 'quiz' ? `Đây là module quiz riêng, KHÔNG dùng skill topic, KHÔNG soạn lý thuyết/chuyên đề. Truyền quizCount=${config.quizSpec?.quizCount || 5}, totalScore=${config.quizSpec?.totalScore || 10}, timeMinutes=${config.quizSpec?.timeMinutes || 35}.` : ''} Không kết thúc nếu chưa có Word file. Không lan man giải thích.` : ''
+ const forceSkill = skill ? `\n\n## Bắt buộc dùng flow đã thiết lập\n${canWebSearch ? 'BƯỚC ĐẦU gọi web_search để lấy nguồn thật, rồi gọi run_skill' : 'NGAY BƯỚC ĐẦU gọi tool run_skill'} với skill="${skill}" để tạo file Word đầy đủ. ${config.moduleKey === 'quiz' ? `Đây là module quiz riêng, KHÔNG dùng skill topic, KHÔNG soạn lý thuyết/chuyên đề. Truyền ĐÚNG quizCount=${config.quizSpec?.quizCount || 1}, totalScore=${config.quizSpec?.totalScore || 10}, timeMinutes=${config.quizSpec?.timeMinutes || 35}; không tự đổi thành 5 quiz.` : ''} Không kết thúc nếu chưa có Word file. Không lan man giải thích.` : ''
  const messages = [
   { role: 'system', content: buildSystem(config) + `\n\n## Sub-agent cần dùng\n${subAgents.join(' → ')}. Tự phân vai theo chuỗi này; không hỏi người dùng chọn tool.` + (skillFlowText ? `\n\n## Flow lưu trong từng skill\n${skillFlowText}` : '') + nbNote + forceSkill + (catalog ? '\n\n' + catalog : '') },
   // prior turns of this session (already trimmed by caller)
@@ -142,7 +142,7 @@ export async function runAgent({ task, config = {}, sources = [], history = [], 
    // Quiz: pipeline riêng; nhét cấu hình quiz nếu model chưa truyền.
    if (name === 'run_skill' && config.moduleKey === 'quiz') {
     const q = config.quizSpec || {}
-    args = { ...args, skill: 'quiz', quizCount: Number(q.quizCount || 5), totalScore: Number(q.totalScore || 10), timeMinutes: Number(q.timeMinutes || 35) }
+    args = { ...args, skill: 'quiz', quizCount: Number(q.quizCount || 1), totalScore: Number(q.totalScore || 10), timeMinutes: Number(q.timeMinutes || 35) }
    }
    onStep({ type: 'tool_call', name, args })
    const out = await runTool(name, args, ctx)

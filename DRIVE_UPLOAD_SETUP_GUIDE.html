@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hướng dẫn setup upload Google Drive cho KientreAAA</title>
+  <style>
+    :root {
+      --bg: #f6f8fc;
+      --card: #ffffff;
+      --text: #152238;
+      --muted: #5f7088;
+      --line: #dfe7f1;
+      --brand: #1B3C6E;
+      --accent: #E8741C;
+      --ok: #13795b;
+      --warn: #946200;
+      --shadow: 0 16px 36px rgba(20,45,84,.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "Be Vietnam Pro", Arial, sans-serif;
+      background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 72px;
+    }
+    .hero, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+    .hero { padding: 28px; margin-bottom: 20px; }
+    .card { padding: 24px; margin-top: 18px; }
+    h1, h2, h3 { margin: 0 0 12px; color: var(--brand); }
+    h1 { font-size: 32px; line-height: 1.15; }
+    h2 { font-size: 24px; }
+    h3 { font-size: 18px; }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--brand);
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    .ok { background: #ecfaf4; color: var(--ok); border-color: #bfe8d7; }
+    .warn { background: #fff8e6; color: var(--warn); border-color: #f3e1a6; }
+    .grid { display: grid; gap: 16px; }
+    @media (min-width: 820px) { .grid.two { grid-template-columns: 1fr 1fr; } }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #f3f6fb;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    code { padding: 2px 6px; }
+    pre {
+      padding: 14px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 12px 0 0;
+    }
+    ol, ul { padding-left: 22px; }
+    .test-box {
+      border-left: 4px solid var(--accent);
+      background: #fff8f1;
+      padding: 14px 16px;
+      border-radius: 12px;
+      margin-top: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f8fbff; color: var(--brand); }
+    a { color: var(--brand); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="pill ok">Đã xác minh thật</div>
+      <div class="pill">KientreAAA</div>
+      <div class="pill">Google Drive Upload</div>
+      <h1>Hướng dẫn setup upload Google Drive cho KientreAAA</h1>
+      <p class="muted">Tài liệu này dành cho anh và người khác dùng webapp KientreAAA để tạo file Word rồi upload lên Google Drive bằng file <code>.json</code> OAuth.</p>
+      <div class="test-box">
+        <strong>Kết quả test thật:</strong>
+        <ul>
+          <li>Đã xác minh bằng file OAuth JSON lưu tại webapp.</li>
+          <li>Đã upload thành công 1 file <code>.docx</code> và 1 bản <strong>Google Docs</strong>.</li>
+          <li>Folder test đã dùng: folder <code>Output</code> trong Drive của dự án.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>1. Cần chuẩn bị gì</h2>
+      <div class="grid two">
+        <div>
+          <h3>Phần bắt buộc</h3>
+          <ul>
+            <li>Webapp KientreAAA đang chạy local tại <code>http://localhost:3100</code></li>
+            <li>Một file OAuth Google dạng <code>.json</code></li>
+            <li>Một folder Google Drive để nhận file upload</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Phần app sẽ làm</h3>
+          <ul>
+            <li>Tạo file Word local trước</li>
+            <li>Upload file <code>.docx</code> lên Drive</li>
+            <li>Tạo thêm 1 bản Google Docs</li>
+            <li>Hiện link trong tab <strong>Kết quả</strong></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. Cách setup cho chính anh</h2>
+      <ol>
+        <li>Mở <code>http://localhost:3100</code></li>
+        <li>Vào <strong>Cài đặt</strong></li>
+        <li>Tìm khối <strong>Google OAuth JSON</strong></li>
+        <li>Dán hoặc upload file <code>.json</code></li>
+        <li>Bấm <strong>Lưu &amp; làm mờ</strong></li>
+        <li>Bấm <strong>Tạo link cấp quyền</strong></li>
+        <li>Mở link Google consent và đồng ý quyền</li>
+        <li>Khi trình duyệt nhảy sang <code>localhost:1</code> và báo lỗi, copy toàn bộ URL trên thanh địa chỉ</li>
+        <li>Quay lại webapp, dán URL đó vào ô <strong>URL redirect sau khi Google báo lỗi localhost:1</strong></li>
+        <li>Bấm <strong>Lưu quyền Drive</strong></li>
+        <li>Bấm <strong>Kiểm tra Drive</strong></li>
+      </ol>
+      <pre>Ghi chú: Trang localhost:1 lỗi là bình thường. Điều quan trọng là phải copy đúng toàn bộ URL redirect có tham số code=...</pre>
+    </section>
+
+    <section class="card">
+      <h2>3. Nhập folder upload ở đâu</h2>
+      <ol>
+        <li>Vào đúng module anh muốn dùng, ví dụ <strong>Soạn quiz theo chuyên đề</strong> hoặc <strong>Review</strong></li>
+        <li>Bấm <strong>Cài đặt module</strong></li>
+        <li>Tại ô <strong>Folder Drive output</strong>, dán link folder Drive hoặc dán thẳng folder ID</li>
+        <li>Bật checkbox <strong>Upload .docx lên Drive + convert Google Docs</strong></li>
+      </ol>
+      <h3>Folder test hiện tại</h3>
+      <pre>Dùng folder Output trong Drive của dự án, hoặc dán link/ID folder riêng của anh.</pre>
+      <p>ID app sẽ tự lấy từ link <code>https://drive.google.com/drive/folders/...</code>.</p>
+    </section>
+
+    <section class="card">
+      <h2>4. Cách setup cho người khác</h2>
+      <p>Người khác cũng làm y hệt, nhưng phải dùng <strong>tài khoản Google của họ</strong> và <strong>folder Drive của họ</strong>.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Phần</th>
+            <th>Dùng chung được không?</th>
+            <th>Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Code webapp</td>
+            <td>Có</td>
+            <td>Dùng chung repo/app</td>
+          </tr>
+          <tr>
+            <td>OAuth JSON</td>
+            <td>Không</td>
+            <td>Mỗi người phải dùng file riêng</td>
+          </tr>
+          <tr>
+            <td>Drive folder</td>
+            <td>Không</td>
+            <td>Mỗi người nên có folder riêng</td>
+          </tr>
+          <tr>
+            <td>Link consent</td>
+            <td>Không</td>
+            <td>Phải tạo lại theo tài khoản đang đăng nhập</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>5. Cách test upload sau khi setup</h2>
+      <ol>
+        <li>Tạo 1 job nhỏ như review 1 file txt/docx hoặc soạn 1 bài ngắn</li>
+        <li>Đợi job xong</li>
+        <li>Vào tab <strong>Kết quả</strong></li>
+        <li>Kiểm tra có hiện:
+          <ul>
+            <li>link Google Docs</li>
+            <li>link tải file .docx</li>
+          </ul>
+        </li>
+        <li>Mở folder Drive đã cấu hình để kiểm tra file thật</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>6. Kết quả xác minh thật</h2>
+      <p>Đây là lần test upload thành công bằng OAuth JSON:</p>
+      <pre>{
+  "ok": true,
+  "folderId": "FOLDER_ID",
+  "uploaded": [
+    {
+      "name": "REVIEW_G5_2026-07-18_1784370724177_kientre_drive_test.docx",
+      "docxId": "1olXiM6NhcAF9xH3BMc1Yc_HmGed_4f2G",
+      "gdocId": "1CZPLX1EoNs5NfHIGgs4ktSBpswUjaQiQnwRZJYzpveA"
+    }
+  ],
+  "skipped": []
+}</pre>
+      <div class="test-box">
+        <strong>Kết luận:</strong>
+        <ul>
+          <li>OAuth JSON: OK</li>
+          <li>Drive permission: OK</li>
+          <li>Folder test: OK</li>
+          <li>Upload .docx: OK</li>
+          <li>Create Google Docs: OK</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>7. Các lỗi thường gặp</h2>
+      <ul>
+        <li><strong>403 access_denied</strong> — tài khoản Google chưa nằm trong <em>Test users</em> của OAuth app</li>
+        <li><strong>Google Drive API not enabled</strong> — chưa bật Google Drive API trong project Google Cloud</li>
+        <li><strong>credential has no access_token/token/refresh_token yet</strong> — mới lưu client JSON, chưa làm bước consent + paste redirect URL</li>
+        <li><strong>Upload chạy xong nhưng tab Kết quả chưa hiện file</strong> — cần kiểm tra lại cấu hình folder Drive và trạng thái checkbox upload trong đúng module</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>

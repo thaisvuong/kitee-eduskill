@@ -7,6 +7,7 @@ import {
   BookOpen, ClipboardList, Wand2, CheckCircle2, Database, Sparkles, SlidersHorizontal, Layers, BookMarked, Link2, NotebookTabs,
   Cpu, ShieldCheck, Eye as EyeIcon, EyeOff, Shield,
 } from 'lucide-react'
+import { quickChatReply } from '@/lib/quickChat'
 import { SLASH_COMMANDS, suggestCommands, findCommand, type SlashCommand } from '@/lib/kientreEngine/slashCommands'
 
 // ---- Modules -------------------------------------------------------------
@@ -113,7 +114,7 @@ type Msg =
 
 type ModuleConfig = {
   subject: string; grade: string; model: string
-  driveFolderId: string; driveFolderUrl: string; useSummary: boolean; uploadDrive: boolean
+  driveFolderId: string; driveFolderUrl: string; driveFolderName?: string; useSummary: boolean; uploadDrive: boolean
   mode?: 'detail' | 'summary' | 'exam' | 'notebook'
   notebookIds?: string[]
   activeNotebookId?: string
@@ -183,6 +184,14 @@ const LS = { authed: 'kientre.authed', view: 'kientre.view', msgs: 'kientre.msgs
 const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 const fileUrl = (root: string, param: 'preview' | 'download', rel: string) =>
   `/api/files?root=${encodeURIComponent(root)}&${param}=${encodeURIComponent(rel)}`
+
+function isQuickChat(text: string) {
+  const t = text.trim().toLowerCase()
+  if (!t) return false
+  if (/^(soạn|tạo|tao|lập|lap|xuất|xuat|viết|viet|làm|lam)\b/.test(t)) return false
+  if (/\b(word|docx|pdf|quiz|đề kiểm tra|de kiem tra|giải file|giai file|review file|xử lý file|xu ly file|tài liệu vừa tải|tai lieu vua tai)\b/.test(t)) return false
+  return /\b(là gì|la gi|gồm những|gom nhung|có những|co nhung|kể tên|ke ten|liệt kê|liet ke|danh sách|danh sach|chủ điểm|chu diem|chủ đề|chu de|nào|nao)\b/.test(t)
+}
 
 // ---- Agent flow ----------------------------------------------------------
 const AGENT_FLOWS: Record<string, string[]> = {
@@ -441,6 +450,7 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
   const [showModuleSettings, setShowModuleSettings] = useState(false)
   const [showNotebookPopup, setShowNotebookPopup] = useState(false)
   const [sessionMemory, setSessionMemory] = useState<SessionMemory | null>(null)
+  const [driveInput, setDriveInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -468,6 +478,11 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
       .then(d => setSessionMemory(d?.ok ? (d.item || null) : null))
       .catch(() => setSessionMemory(null))
   }, [activeSessionId])
+  useEffect(() => { setDriveInput(cfg?.driveFolderUrl || cfg?.driveFolderId || '') }, [cfg?.driveFolderUrl, cfg?.driveFolderId])
+  useEffect(() => {
+    if (!cfg?.driveFolderId || cfg?.driveFolderName) return
+    fetch('/api/drive-folder?id=' + encodeURIComponent(cfg.driveFolderId)).then(r => r.json()).then(d => { if (d?.ok && d.name) setModuleField('driveFolderName', d.name as any) }).catch(() => {})
+  }, [cfg?.driveFolderId, cfg?.driveFolderName])
 
   // Update one module config field and persist.
   async function setModuleField<K extends keyof ModuleConfig>(k: K, v: ModuleConfig[K]) {
@@ -593,7 +608,7 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
             }
           }
           else if (type === 'error') patchAgent(r => { r.status = 'error'; r.steps = [...r.steps, { type: 'error', message: payload.message || 'lỗi agent' }] })
-          else if (type === 'done') patchAgent(r => { r.status = payload.code === 0 ? 'done' : 'error'; r.created = payload.created || r.created; r.outputDir = payload.outputDir || r.outputDir })
+          else if (type === 'done') patchAgent(r => { r.status = payload.code === 0 ? 'done' : 'error'; r.created = payload.created || r.created; r.outputDir = payload.outputDir || r.outputDir; r.drive = payload.driveUploads || r.drive })
         }
       }
     } catch (e: any) {
@@ -614,7 +629,8 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
       return
     }
     const memoryChat = /\b(nhớ|nho|đang làm|dang lam|task|việc gì|viec gi|đang thực hiện|dang thuc hien|tiến độ|tien do|trạng thái|trang thai|lúc nãy|luc nay|tiếp tục|tiep tuc|trước đó|truoc do)\b/i.test(t)
-    const shouldUseAgent = module === 'quiz' || !!cfg?.agentMode || (/tóm tắt|tom tat|tổng hợp|tong hop/i.test(t) && /notebook|notebooklm|tài liệu|tai lieu|nguồn|nguon/i.test(t))
+    const quickChat = isQuickChat(t)
+    const shouldUseAgent = !quickChat && (module === 'quiz' || !!cfg?.agentMode || (/tóm tắt|tom tat|tổng hợp|tong hop/i.test(t) && /notebook|notebooklm|tài liệu|tai lieu|nguồn|nguon/i.test(t)))
     const existingNotebookIds = cfg ? (cfg.selectedNotebookIds?.length ? cfg.selectedNotebookIds : cfg.notebookIds || []) : []
     const mergedNotebookIds = cfg ? Array.from(new Set([...existingNotebookIds, ...linkedNotebookIds])) : linkedNotebookIds
     const agentCfg: ModuleConfig | undefined = cfg ? {
@@ -678,7 +694,8 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
     const sourceText = visibleRequest || t
     const finalCommand = sourceText.startsWith('/') ? applyModuleContext(sourceText, effectiveCfg, module) : naturalToCommand(sourceText, module, effectiveCfg, [...msgs].reverse().find((m): m is Extract<Msg, { role: 'upload' }> => m.role === 'upload'))
     if (!finalCommand) {
-      setMsgs(m => [...m, { id: uid(), role: 'user', text: t }, { id: uid(), role: 'bot', text: moduleOf(module).needsFile ? 'Module này cần tài liệu. Anh tải file lên trước, hoặc dán đường dẫn file rồi nhập yêu cầu tự nhiên.' : 'Em chưa hiểu yêu cầu. Anh mô tả chủ đề muốn soạn/kiểm tra nhé.' }])
+      const quick = quickChatReply(sourceText, effectiveCfg)
+      setMsgs(m => [...m, { id: uid(), role: 'user', text: t }, { id: uid(), role: 'bot', text: quick || (moduleOf(module).needsFile ? 'Module này cần tài liệu. Anh tải file lên trước, hoặc dán đường dẫn file rồi nhập yêu cầu tự nhiên.' : 'Em chưa hiểu yêu cầu. Anh mô tả chủ đề muốn soạn/kiểm tra nhé.') }])
       return
     }
     const firstToken = finalCommand.split(/\s+/)[0].toLowerCase()
@@ -744,6 +761,17 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
   const moduleSkills = module === 'quiz' ? [] : (MODULE_SKILLS[module] || [])
   const useNotebook = (cfg?.mode || 'detail') === 'notebook'
   const selectedNb = cfg?.selectedNotebookIds?.length ? cfg!.selectedNotebookIds! : (cfg?.notebookIds || [])
+  const driveFolderLabel = cfg?.driveFolderName || (cfg?.driveFolderId ? 'Đang nhận diện folder…' : 'Chưa cấu hình Drive')
+  const driveCanSave = Boolean(driveInput.trim()) && !driveFolderLabel.startsWith('Lỗi:')
+  async function saveDriveFolder() {
+    const v = driveInput.trim()
+    const id = v.match(/folders\/([A-Za-z0-9_-]+)/)?.[1] || v
+    const d = await fetch('/api/drive-folder?id=' + encodeURIComponent(id)).then(r => r.json()).catch(() => null)
+    if (!d?.ok || !d.name) { await setModuleField('driveFolderName', 'Lỗi: không đọc được folder' as any); return }
+    const url = d.webViewLink || (id ? `https://drive.google.com/drive/folders/${id}` : v)
+    await patchModuleFields({ driveFolderUrl: url, driveFolderId: id, driveFolderName: d.name, uploadDrive: true } as any)
+    setDriveInput(url)
+  }
   async function toggleUseNotebook() {
     if (useNotebook) await setModuleField('mode', 'detail' as any)
     else { await setModuleField('mode', 'notebook' as any); if (!(cfg?.notebookIds || []).length) setShowNotebookPopup(true) }
@@ -763,6 +791,20 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
         </div>
         <div className="module-hero-actions">
           <span className="pill mini"><Terminal size={13} /> {runningCount}</span>
+          <div className={`drive-topbar ${driveFolderLabel.startsWith('Lỗi:') ? 'error' : ''}`} title={cfg?.driveFolderId || 'Chưa cấu hình folder Drive'}>
+            <div className="drive-topbar-main">
+              <Cloud size={15} />
+              <div>
+                <div className="drive-topbar-label">Drive output</div>
+                <div className="drive-topbar-name">{driveFolderLabel}</div>
+              </div>
+            </div>
+            <div className="inline-input-action drive-topbar-input">
+              <input value={driveInput} placeholder="Dán link/ID folder" onChange={e => setDriveInput(e.target.value)} />
+              <button className="btn primary mini" onClick={saveDriveFolder} disabled={!driveCanSave}>Lưu</button>
+            </div>
+            <label className="drive-upload-toggle"><input type="checkbox" checked={!!cfg?.uploadDrive} onChange={e => setModuleField('uploadDrive', e.target.checked as any)} /> Upload + Convert Docs</label>
+          </div>
           <button className={`btn ${useNotebook ? 'secondary' : 'ghost'}`} onClick={() => setShowNotebookPopup(true)}><NotebookTabs size={16} /> NotebookLM</button>
           <button className="btn ghost" onClick={() => setShowModuleSettings(true)}><SlidersHorizontal size={16} /> Cài đặt module</button>
           <button className="btn ghost mini" onClick={() => setMsgs(m => m.filter(x => !(x.role === 'run' && x.module === module) && x.role !== 'user' && x.role !== 'bot' && x.role !== 'upload'))} title="Xoá chat module này"><Trash2 size={14} /></button>
@@ -1141,7 +1183,7 @@ function ModuleSettingsModal({ module, cfg, setModuleField, models, notebooks, n
             <div className="field add-subject"><label>Thêm môn</label><div className="inline-input-action"><input value={newSubject} placeholder="VD: lịch sử" onChange={e => setNewSubject(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addSubject() }} /><button className="btn ghost mini" onClick={addSubject} disabled={!newSubject.trim()}>Thêm</button></div></div>
             <div className="field"><label>Lớp</label><select value={cfg.grade || '5'} onChange={e => setModuleField('grade', e.target.value as any)}>{['1','2','3','4','5','6','7','8','9'].map(g => <option key={g} value={g}>Lớp {g}</option>)}</select></div>
             <div className="field wide"><label>Model</label><select value={cfg.model || ''} onChange={e => setModuleField('model', e.target.value as any)}>{cfg.model && !models.includes(cfg.model) && <option value={cfg.model}>{cfg.model}</option>}{models.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
-            <div className="field wide"><label>Folder Drive output</label><input value={cfg.driveFolderUrl || cfg.driveFolderId || ''} placeholder="https://drive.google.com/drive/folders/..." onChange={e => { const v = e.target.value; const id = v.match(/folders\/([A-Za-z0-9_-]+)/)?.[1] || v.trim(); setModuleField('driveFolderUrl', v as any); setModuleField('driveFolderId', id as any) }} /></div>
+            <div className="field wide"><label>Folder Drive output</label><input value={cfg.driveFolderUrl || cfg.driveFolderId || ''} placeholder="https://drive.google.com/drive/folders/..." onChange={e => { const v = e.target.value; const id = v.match(/folders\/([A-Za-z0-9_-]+)/)?.[1] || v.trim(); setModuleField('driveFolderUrl', v as any); setModuleField('driveFolderId', id as any); setModuleField('driveFolderName', '' as any) }} /></div>
             <label className="check-row inline"><input type="checkbox" checked={!!cfg.uploadDrive} onChange={e => setModuleField('uploadDrive', e.target.checked as any)} /> Upload .docx lên Drive + convert Google Docs</label>
           </div>
 
@@ -1295,6 +1337,18 @@ function MsgView({ msg, onRun, sessionMemory }: { msg: Msg; onRun: (t: string) =
           <pre className="run-log agent-inline-log">{agentTerminalLines(msg).slice(-160).join('\n')}</pre>
           {msg.status === 'error' && (() => { const err = msg.steps.filter(s => s.type === 'error') as Extract<AgentStep, { type: 'error' }>[]; return <div className="proc-err">{err.length ? err[err.length - 1].message : 'Có lỗi khi chạy.'} <button className="btn ghost mini" onClick={() => onRun(msg.task)}><RefreshCw size={13} /> Thử lại</button></div> })()}
           {msg.finalText && msg.status !== 'error' && <div className="agent-final"><div className="agent-final-title">Kết luận</div>{renderText(msg.finalText)}</div>}
+          {msg.status !== 'running' && msg.drive && msg.drive.length > 0 && (
+            <div className="drive-links">
+              <div className="created-title">☁️ Trên Google Drive:</div>
+              {msg.drive.map((u, i) => (
+                <div key={i} className="drive-item">
+                  <span className="drive-name">{u.name}</span>
+                  {u.gdocLink && <a className="file-link" href={u.gdocLink} target="_blank" rel="noreferrer"><FileText size={13} /> Google Docs</a>}
+                  {u.docxLink && <a className="file-link" href={u.docxLink} target="_blank" rel="noreferrer"><Download size={13} /> .docx</a>}
+                </div>
+              ))}
+            </div>
+          )}
           {msg.status !== 'running' && msg.created.length > 0 && (
             <div className="created"><div className="created-title">📄 File kết quả:</div>{msg.created.map(name => <a key={name} className="file-link" href={fileUrl(msg.outputDir, 'download', name)}><Download size={14} /> {name}</a>)}</div>
           )}

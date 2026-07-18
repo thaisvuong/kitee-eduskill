@@ -100,6 +100,40 @@ async function readProviderKeyEnv(hermesHome: string): Promise<Record<string, st
  return env
 }
 
+let _py: string | null = null
+async function pickPython(): Promise<string> {
+ if (_py) return _py
+ const cands = [process.env.HERMES_PYTHON, '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3', '/opt/homebrew/bin/python3', 'python3'].filter(Boolean) as string[]
+ for (const c of cands) {
+  const ok = await new Promise<boolean>(res => {
+   const ch = spawn(c, ['-c', 'import certifi'])
+   ch.on('error', () => res(false)); ch.on('close', code => res(code === 0))
+  })
+  if (ok) { _py = c; return c }
+ }
+ _py = 'python3'; return _py
+}
+
+async function uploadDocxToDrive(files: string[], folderId: string, tokenFile: string, engineDir: string, deleteLocal: boolean): Promise<{ ok: boolean; uploaded: any[]; skipped: any[]; error?: string }> {
+ const script = path.join(engineDir, 'scripts', 'kientre_drive_upload.py')
+ const args = [script, '--token', tokenFile, '--folder', folderId]
+ if (deleteLocal) args.push('--delete-local')
+ args.push(...files)
+ const py = await pickPython()
+ return await new Promise(resolve => {
+  const child = spawn(py, args, { env: { ...process.env } })
+  let stdout = '', stderr = ''
+  child.stdout.on('data', d => { stdout += d.toString() })
+  child.stderr.on('data', d => { stderr += d.toString() })
+  child.on('error', e => resolve({ ok: false, uploaded: [], skipped: [], error: e.message }))
+  child.on('close', code => {
+   if (code !== 0) return resolve({ ok: false, uploaded: [], skipped: [], error: stderr.trim() || `exit ${code}` })
+   try { const d = JSON.parse(stdout); resolve({ ok: true, uploaded: d.uploaded || [], skipped: d.skipped || [] }) }
+   catch { resolve({ ok: false, uploaded: [], skipped: [], error: 'parse: ' + stdout.slice(0, 300) }) }
+  })
+ })
+}
+
 // Assemble the agent payload from stored config + skills + sources.
 async function buildPayload(moduleKey: string, task: string, history: any[], settings: Record<string, any>, memory: SessionMemory | null = null) {
  const mod = { ...(settings?.modules?.[moduleKey] || {}), ...settings }
@@ -187,13 +221,15 @@ export async function POST(req: Request) {
 
    const providerKeyEnv = await readProviderKeyEnv(settings.hermesHome || kientreConfig.hermesHome)
    const routerBaseUrl = settings.routerBaseUrl || kientreConfig.routerBaseUrl
+   const moduleDriveFolderId = settings.driveFolderId || settings.driveParentId || kientreConfig.driveParentId
    const env = {
     ...process.env, ...providerKeyEnv, ...eduAgentEnv(settings),
     HERMES_WORKSPACE_DIR: settings.workspaceDir || kientreConfig.workspaceDir,
     KIENTRE_OUTPUT_DIR: outputDir,
     HERMES_HOME: settings.hermesHome || kientreConfig.hermesHome,
     GOOGLE_OAUTH_JSON: settings.googleCredentialFile || kientreConfig.googleCredentialFile,
-    HERMES_DRIVE_PARENT_ID: settings.driveParentId || kientreConfig.driveParentId,
+    HERMES_DRIVE_PARENT_ID: moduleDriveFolderId,
+    KIENTRE_DRIVE_FOLDER_ID: moduleDriveFolderId,
     NINE_ROUTER_BASE_URL: routerBaseUrl,
     NINEROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
     HERMES_ROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
@@ -226,10 +262,26 @@ export async function POST(req: Request) {
    child.stderr.on('data', (c: Buffer) => { const s = c.toString().trim(); if (s) sse(controller, 'log', { line: s }) })
 
    child.on('error', e => { RUNNING.delete(jobId); sse(controller, 'error', { message: e.message }); close() })
-   child.on('close', code => {
+   child.on('close', async code => {
     RUNNING.delete(jobId)
     if (buf.trim()) { try { const o = JSON.parse(buf); if (o.event === 'agent_final') createdFiles.push(...(o.createdFiles || [])) } catch {} }
-    sse(controller, 'done', { code: code ?? 1, cancelled, created: createdFiles.map(f => path.basename(f)), outputDir, createdFiles })
+    const driveUploads: any[] = []
+    if ((code ?? 1) === 0 && settings.uploadDrive && moduleDriveFolderId && createdFiles.length) {
+     const docxFiles = [...new Set(createdFiles)].filter(f => /\.docx$/i.test(f))
+     if (docxFiles.length) {
+      sse(controller, 'agent_step', { type: 'assistant', text: `☁️ Đang tải ${docxFiles.length} file .docx lên Google Drive + chuyển Google Docs...` })
+      const tokenFile = settings.googleCredentialFile || kientreConfig.googleCredentialFile || path.join(settings.hermesHome || kientreConfig.hermesHome, 'google_oauth.json')
+      const res = await uploadDocxToDrive(docxFiles, moduleDriveFolderId, tokenFile, engineDir, true)
+      if (!res.ok) sse(controller, 'agent_step', { type: 'assistant', text: `⚠️ Lỗi upload Drive: ${res.error}` })
+      else {
+       for (const u of res.uploaded) {
+        driveUploads.push(u)
+        sse(controller, 'agent_step', { type: 'assistant', text: `☁️ ${u.name} → Docs: ${u.gdocLink}` })
+       }
+      }
+     }
+    }
+    sse(controller, 'done', { code: code ?? 1, cancelled, created: createdFiles.map(f => path.basename(f)), outputDir, createdFiles, driveUploads })
     close()
    })
 

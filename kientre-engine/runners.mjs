@@ -9,7 +9,7 @@ import { solveDocument } from './agents/solver.mjs'
 import { reviewDocument } from './agents/reviewer.mjs'
 import { runJudge } from './agents/judge.mjs'
 import { generateExam, generateQuizQuestion } from './agents/examiner.mjs'
-import { planQuizSet } from './agents/quizplanner.mjs'
+import { normalizeQuizCount, planQuizSet, trimQuizPlan } from './agents/quizplanner.mjs'
 import { drawTikzFigure } from './agents/artist.mjs'
 import { fetchImage } from './agents/imagefetcher.mjs'
 import { fetchExerciseSources } from './server/websearch.mjs'
@@ -18,6 +18,30 @@ import { createQuizDoc, appendQuizQuestion } from './server/gdoc_stream.mjs'
 
 function dateStr() { return new Date().toISOString().split('T')[0] }
 function gradeNum(grade) { const m = String(grade).match(/\d+/); return m ? m[0] : 'x' }
+function isTakenFrameLine(line) { return /<!--\s*TAKEN\s+[^>]+-->/.test(line) }
+function parseFrameQuestion(line) {
+ const m = String(line).match(/^- \*\*Câu\s+(\d+)\*\*\s*\(([^·)]+)(?:·\s*([^)]+?))?\):\s*(.*)$/)
+ if (!m || isTakenFrameLine(line)) return null
+ const tail = (m[4] || '').replace(/<!--.*?-->/g, '').trim()
+ const [notePart, visualPart = ''] = tail.split(/\s+·\s+hình:\s*/i)
+ return { index: Number(m[1]), points: Number(String(m[3] || '').match(/[\d.]+/)?.[0] || 0), type: m[2].trim(), note: notePart.trim(), visual: visualPart.trim() }
+}
+async function takeFrameQuestion(framePath, quiz, question) {
+ const raw = await readFile(framePath, 'utf8')
+ const lines = raw.split('\n')
+ let inQuiz = false, picked = -1
+ for (let i = 0; i < lines.length; i++) {
+  if (lines[i].startsWith('## ')) inQuiz = lines[i].includes(quiz.title || `Quiz ${quiz.index}`)
+  if (!inQuiz) continue
+  const parsed = parseFrameQuestion(lines[i])
+  if (parsed) { picked = i; break }
+ }
+ if (picked < 0) return question
+ const parsed = parseFrameQuestion(lines[picked])
+ lines[picked] = `${lines[picked]} <!-- TAKEN ${new Date().toISOString()} -->`
+ await writeFile(framePath, lines.join('\n'), 'utf8')
+ return { ...question, ...parsed, index: question.index || parsed.index }
+}
 function judgeBoundaries(grade, subject) {
  return [
   `Phải đúng chương trình ${subject} ${grade}`,
@@ -180,11 +204,17 @@ function quizQuestionBlocks(q, detail) {
  return blocks
 }
 
+function preferTikzFirst(visual = '') {
+ const s = String(visual || '').toLowerCase()
+ return /ô vuông|o vuong|lưới|luoi|tô màu|to mau|hình chữ nhật|hinh chu nhat|hình vuông|hinh vuong|tam giác|tam giac|phân số|phan so|đường chéo|duong cheo|góc|goc|abcd|efgh|trục|toa do|tọa độ|biểu đồ|bieu do/.test(s)
+}
+
 export async function runQuizSet(params = {}) {
  const { grade = 'Lớp 4', subject = 'Toán', topic = '', quizCount = 3, totalScore = 10, timeMinutes = 14, reference = '', notebook = '', useWeb = false, onProgress = () => {} } = params
+ const count = normalizeQuizCount(quizCount)
  const step = text => { try { onProgress({ type: 'assistant', text }) } catch {} }
- console.log(`🧭 QuizPlanner lập khung: ${quizCount} quiz · ${totalScore} điểm · ${timeMinutes} phút (${grade}, ${subject})`)
- step(`QuizPlanner: lập bảng khung ${quizCount} quiz, ${totalScore} điểm, ${timeMinutes} phút`)
+ console.log(`🧭 QuizPlanner lập khung: ${count} quiz · ${totalScore} điểm · ${timeMinutes} phút (${grade}, ${subject})`)
+ step(`QuizPlanner: lập bảng khung ${count} quiz, ${totalScore} điểm, ${timeMinutes} phút`)
  let finalReference = String(reference || '').trim()
  if (useWeb) {
   try {
@@ -199,7 +229,7 @@ export async function runQuizSet(params = {}) {
   try { const nb = await notebookRefs(notebook, `Tóm tắt dạng quiz/bài tập về ${topic} cho ${grade}`); if (nb.ok) finalReference = (nb.text + '\n' + finalReference).slice(0, 6000) } catch { /* ok */ }
  }
 
- const plan = await planQuizSet({ topic, grade, subject, quizCount, totalScore, timeMinutes, reference: finalReference })
+ const plan = trimQuizPlan(await planQuizSet({ topic, grade, subject, quizCount: count, totalScore, timeMinutes, reference: finalReference }), count)
  step(`Bảng khung QuizPlanner:\n${plan.quizzes.map(q => `${q.title || `Quiz ${q.index}`}: ${(q.questions || []).map(x => `C${x.index} ${x.type} ${x.points}đ — ${x.note || ''}`).join('\n  ')}`).join('\n')}`)
  const folder = `QUIZ_G${gradeNum(grade)}_${dateStr()}_${slugify(topic || subject)}`
  const outDir = path.join(process.env.KIENTRE_OUTPUT_DIR || process.env.HERMES_WORKSPACE_DIR || process.cwd(), folder)
@@ -223,15 +253,16 @@ export async function runQuizSet(params = {}) {
  }
 
  const sections = []
- for (const quiz of plan.quizzes.slice(0, Number(quizCount) || 3)) {
+ for (const quiz of plan.quizzes) {
   const quizTitle = `${quiz.title || `Quiz ${quiz.index}`} — ${quiz.difficulty || ''}`
   console.log(`🧩 Examiner soạn ${quiz.title || `Quiz ${quiz.index}`}: ${quiz.difficulty || ''}`)
   step(`Examiner: bắt đầu ${quiz.title || `Quiz ${quiz.index}`} (${quiz.difficulty || ''})`)
   const blocks = [{ type: 'note', title: 'Thông tin quiz', text: `${quiz.goal || ''}\nTổng điểm: ${totalScore}. Thời gian: ${timeMinutes} phút. Độ khó: ${quiz.difficulty || ''}` }]
   let firstOfQuiz = true
-  for (const q of quiz.questions || []) {
+  for (const qPlan of quiz.questions || []) {
+   const q = await takeFrameQuestion(framePath, quiz, qPlan)
    console.log(`  ✍️ Câu ${q.index}: ${q.type} · ${q.points} điểm`)
-   step(`Examiner: soạn ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} · ${q.type} · ${q.points} điểm`)
+   step(`Examiner: lấy khung.md và soạn ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} · ${q.type} · ${q.points} điểm`)
    // Ưu tiên nguồn web/tài liệu cho câu này, rồi chế lại về đúng loại (trắc nghiệm/điền/tự luận).
    const detail = await generateQuizQuestion({ grade, subject, topic, globalContext: plan.globalContext, quiz, question: q, reference: finalReference })
    let imageUrl = ''
@@ -239,9 +270,14 @@ export async function runQuizSet(params = {}) {
     step(`Artist: minh hoạ ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} (ưu tiên ảnh web, không có thì tự vẽ)`)
     const img = path.join(outDir, 'images', `quiz${quiz.index}_cau${q.index}.png`)
     try {
-     // Ưu tiên tải ảnh thật từ web trước; chỉ khi không có mới tự vẽ TikZ.
-     if (await fetchImage(`${topic} ${detail.visual}`, img)) { detail.imagePath = img; imageUrl = await readImageSourceUrl(img) }
-     else if (await drawTikzFigure(detail.visual, img)) { detail.imagePath = img }
+     // Hình toán có cấu trúc rõ: ưu tiên TikZ trước để tránh ảnh web sai mô tả.
+     if (preferTikzFirst(detail.visual)) {
+      if (await drawTikzFigure(detail.visual, img)) detail.imagePath = img
+      else if (await fetchImage(`${topic} ${detail.visual}`, img)) { detail.imagePath = img; imageUrl = await readImageSourceUrl(img) }
+     } else {
+      if (await fetchImage(`${topic} ${detail.visual}`, img)) { detail.imagePath = img; imageUrl = await readImageSourceUrl(img) }
+      else if (await drawTikzFigure(detail.visual, img)) { detail.imagePath = img }
+     }
     } catch { /* hình không làm fail câu */ }
    }
    blocks.push(...quizQuestionBlocks(q, detail))

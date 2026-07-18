@@ -462,6 +462,27 @@ body { background: var(--bg); }
 .eyebrow { color: var(--orange-dark); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; }
 .module-hero-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
 .module-hero-actions .status { display: inline-flex; align-items: center; gap: 6px; }
+.drive-topbar {
+ display: grid;
+ grid-template-columns: minmax(170px, 1fr) minmax(180px, 260px) auto;
+ align-items: center;
+ gap: 8px;
+ max-width: 560px;
+ padding: 6px 8px;
+ border: 1px solid var(--line);
+ border-radius: 12px;
+ background: #fff;
+}
+.drive-topbar.error { border-color: #fecaca; background: #fff7f7; }
+.drive-topbar.error .drive-topbar-name { color: var(--danger); }
+.drive-topbar-main { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--navy); }
+.drive-topbar-main svg { flex: 0 0 auto; color: var(--orange); }
+.drive-topbar-label { font-size: 10px; font-weight: 900; line-height: 1.1; text-transform: uppercase; letter-spacing: .08em; color: var(--orange-dark); }
+.drive-topbar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 800; line-height: 1.25; color: var(--navy); }
+.drive-topbar-input input { min-height: 30px; min-width: 0; border: 1px solid var(--line); border-radius: 9px; padding: 5px 8px; font-size: 12px; }
+.drive-topbar-input .btn { height: 30px; padding: 0 10px; border-radius: 9px; font-size: 12px; }
+.drive-upload-toggle { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; color: var(--muted); font-size: 11px; font-weight: 800; }
+.drive-upload-toggle input { width: 14px; height: 14px; accent-color: var(--orange); }
 
 .pro-composer { padding-top: 0; }
 .mode-rail {
