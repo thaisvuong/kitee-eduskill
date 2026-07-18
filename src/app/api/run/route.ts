@@ -90,6 +90,8 @@ function eduAgentEnv(settings: Record<string, any>) {
  const env: Record<string, string> = {}
  const set = (name: string, value: unknown) => { if (typeof value === 'string' && value.trim()) env[name] = value.trim() }
  set('HERMES_ARCHITECT_MODEL', models.architect)
+ set('HERMES_INTENT_MODEL', models.intent)
+ set('HERMES_QUIZ_PLANNER_MODEL', models.quizplanner)
  set('HERMES_EXAMINER_MODEL', models.examiner)
  set('HERMES_SOLVER_MODEL', models.solver)
  set('HERMES_JUDGE_MODEL', models.judge || models.intent)

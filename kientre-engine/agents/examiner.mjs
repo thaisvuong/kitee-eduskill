@@ -1,4 +1,5 @@
 import { chatJSON } from '../server/llm.mjs'
+import { searchWeb } from '../server/websearch.mjs'
 
 /** Ra ĐỀ THI: trắc nghiệm + điền đáp án + tự luận (điểm từng ý). */
 export async function generateExam(o, model = process.env.HERMES_EXAMINER_MODEL || 'gc/gemini-2.5-flash') {
@@ -25,7 +26,14 @@ Trả JSON:
 
 export async function generateQuizQuestion(o, model = process.env.HERMES_EXAMINER_MODEL || 'gc/gemini-2.5-flash') {
  const { grade, subject, topic, globalContext = '', quiz = {}, question = {}, reference = '' } = o
- const ref = reference ? `\nNGUỒN/TÀI LIỆU THAM CHIẾU:\n"""${String(reference).slice(0, 2600)}"""` : ''
+ const webQuery = `${topic} ${grade} ${subject} ${question.type || ''} ${question.note || ''}`.trim()
+ let webRef = ''
+ try {
+  const web = await searchWeb(webQuery, 3)
+  webRef = web.map((r, i) => `Nguồn ${i + 1}: ${r.title}\n${r.snippet || ''}\n${r.url || ''}`).join('\n\n').slice(0, 1800)
+ } catch { /* ignore web failure */ }
+ const mergedRef = [reference, webRef].filter(Boolean).join('\n\n')
+ const ref = mergedRef ? `\nNGUỒN/TÀI LIỆU THAM CHIẾU:\n"""${String(mergedRef).slice(0, 2600)}"""` : ''
  const system = 'Bạn là Examiner soạn từng câu quiz tiểu học Việt Nam. LUÔN trả JSON hợp lệ, không kèm markdown ngoài JSON.'
  const user = `Soạn ĐÚNG 1 câu cho quiz. Giữ đồng bộ với context chung, không tự đổi mục tiêu.
 
@@ -37,18 +45,25 @@ Yêu cầu hình: ${question.visual || 'không bắt buộc'}${ref}
 
 Ưu tiên: nếu có NGUỒN/TÀI LIỆU tham chiếu ở trên, hãy BÁM theo bài tập/dạng câu trong nguồn và CHẾ LẠI về đúng loại "${question.type}" (trắc nghiệm 4 lựa chọn / điền đáp án / tự luận). Không bịa nếu nguồn đã có dạng phù hợp.
 Trả về: question, options (nếu trắc nghiệm), answer, hints, solution, visual.
-BẮT BUỘC: đúng 3 gợi ý (hints) theo hướng dẫn từng bước. Tự luận phải có lời giải chi tiết và điểm từng ý.
+BẮT BUỘC: đúng 3 gợi ý (hints) theo hướng dẫn từng bước. Mỗi hint tự nhiên như "Gợi ý 1: ...", "Gợi ý 2: ...", "Gợi ý 3: ..." (không viết đáp án trong gợi ý). Tự luận phải có lời giải chi tiết và điểm từng ý.
+visual phải là mô tả hình toán học cụ thể để tìm đúng ảnh nguồn hoặc tự vẽ: nêu đối tượng, nhãn điểm, quan hệ hình học; không mô tả ảnh người/ảnh trang trí.
 
 JSON: {"question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"answer":"...","hints":["...","...","..."],"solution":"...","visual":"..."}`
  const res = await chatJSON({ model, system, user, temperature: 0.45 })
  let hints = Array.isArray(res?.hints) ? res.hints.filter(Boolean) : []
  if (hints.length > 3) hints = hints.slice(0, 3)
- return {
-  question: res?.question || '',
-  options: Array.isArray(res?.options) ? res.options : [],
-  answer: res?.answer || '',
-  hints,
-  solution: res?.solution || '',
-  visual: res?.visual || question.visual || '',
+ const isMc = String(question.type || '').toLowerCase().includes('trắc')
+ const isFill = String(question.type || '').toLowerCase().includes('điền')
+ const options = isMc ? (Array.isArray(res?.options) ? res.options.slice(0, 4).map(String) : []) : []
+ const solution = Array.isArray(res?.solution) ? res.solution.join('\n') : String(res?.solution || '')
+  return {
+   question: res?.question || '',
+  options,
+   answer: res?.answer || '',
+  hints: hints.map((h, i) => `Gợi ý ${i + 1}: ${String(h).replace(/^Gợi ý\s*\d+\s*[:.\-]?\s*/i, '').trim()}`),
+  solution,
+  visual: String(res?.visual || question.visual || ''),
+  // ponytail: lightweight frame check. add full semantic validator when wrong type slips through often.
+  frameOk: isMc ? options.length === 4 : isFill ? options.length === 0 : true,
  }
 }

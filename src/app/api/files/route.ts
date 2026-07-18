@@ -159,3 +159,15 @@ export async function GET(req: Request) {
  data.files.sort((a, b) => b.mtime - a.mtime)
  return NextResponse.json({ ok: true, root, folders: data.folders.slice(0, 200), files: data.files.slice(0, 200) })
 }
+
+export async function DELETE(req: Request) {
+ const url = new URL(req.url)
+ const outputDir = url.searchParams.get('root') || kientreConfig.outputDir
+ const rel = url.searchParams.get('rel') || ''
+ if (!rootAllowed(outputDir)) return NextResponse.json({ ok: false, error: 'Không được phép xoá ngoài Output' }, { status: 403 })
+ if (!rel) return NextResponse.json({ ok: false, error: 'Thiếu rel' }, { status: 400 })
+ const full = await resolveRequestedFile(outputDir, rel)
+ if (!full) return NextResponse.json({ ok: false, error: 'Không tìm thấy file' }, { status: 404 })
+ await fs.unlink(full).catch(() => null)
+ return NextResponse.json({ ok: true, rel })
+}

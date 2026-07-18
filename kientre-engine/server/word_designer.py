@@ -448,6 +448,12 @@ def strip_markdown_soft(text):
   """Bỏ heading nhưng GIỮ **đậm**/*nghiêng* để add_inline_runs biên dịch."""
   if not text:
     return ""
+  if isinstance(text, list):
+    text = "\n".join(str(x) for x in text if x is not None)
+  elif isinstance(text, bytes):
+    text = text.decode("utf-8", "ignore")
+  elif not isinstance(text, str):
+    text = str(text)
   text = normalize_ws(text)
   text = re.sub(r'#+\s*', '', text)
   text = text.replace('`', '')

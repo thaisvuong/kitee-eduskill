@@ -23,8 +23,8 @@ const moduleOf = (k: ModuleKey | string) => MODULES.find(m => m.key === k) || MO
 
 type EduAgentKey = 'intent' | 'quizplanner' | 'architect' | 'examiner' | 'solver' | 'judge' | 'student' | 'reviewer' | 'visualcurator' | 'artist'
 const EDU_AGENTS: { key: EduAgentKey; label: string; desc: string; env: string; fallback: string }[] = [
-  { key: 'intent', label: 'Intent', desc: 'Đọc yêu cầu, xác định ý định và thông tin còn thiếu', env: 'HERMES_JUDGE_MODEL', fallback: 'cx/gpt-5.5' },
-  { key: 'quizplanner', label: 'QuizPlanner', desc: 'Lập bảng khung quiz/câu/điểm/loại câu/note/hình bằng model mạnh', env: 'HERMES_QUIZ_PLANNER_MODEL', fallback: 'cc/claude-opus-4-8' },
+  { key: 'intent', label: 'Intent', desc: 'Đọc yêu cầu, xác định ý định và thông tin còn thiếu', env: 'HERMES_INTENT_MODEL', fallback: 'cx/gpt-5.5' },
+  { key: 'quizplanner', label: 'QuizPlanner', desc: 'Lập bảng khung quiz/câu/điểm/loại câu/note/hình bằng model mạnh', env: 'HERMES_QUIZ_PLANNER_MODEL', fallback: 'cx/gpt-5.5' },
   { key: 'architect', label: 'Architect', desc: 'Lập khung chuyên đề, ranh giới kiến thức, mục tiêu', env: 'HERMES_ARCHITECT_MODEL', fallback: 'gc/gemini-2.5-flash' },
   { key: 'examiner', label: 'Examiner', desc: 'Ra đề kiểm tra, trắc nghiệm, điền, tự luận, biểu điểm', env: 'HERMES_EXAMINER_MODEL', fallback: 'gc/gemini-2.5-flash' },
   { key: 'solver', label: 'Solver', desc: 'Giải chi tiết từng câu trong tài liệu', env: 'HERMES_SOLVER_MODEL', fallback: 'gc/gemini-2.5-flash' },
@@ -157,7 +157,8 @@ type AgentStep =
   | { type: 'limit'; maxTurns: number }
   | { type: 'error'; message: string }
 type JobMsg = Extract<Msg, { role: 'run' }> | Extract<Msg, { role: 'agent' }>
-type SessionMeta = { id: string; title: string; module: string; count: number; updatedAt: number }
+type QueueItem = JobMsg & { sessionId?: string; sessionTitle?: string }
+type SessionMeta = { id: string; title: string; module: string; count: number; updatedAt: number; contextChars: number; contextLimit: number; contextPct: number }
 type MaskedKey = { present: boolean; hint: string }
 type ProviderKey = 'gemini' | 'deepseek' | 'glm' | 'openrouter'
 type SettingsShape = {
@@ -217,6 +218,7 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false)
   const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [activeSessionId, setActiveSessionId] = useState('')
+  const [moduleQueue, setModuleQueue] = useState<QueueItem[]>([])
 
   useEffect(() => {
     try {
@@ -236,7 +238,7 @@ export default function Home() {
       }
       else {
         const cr = await fetch('/api/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Phiên mới', module: 'topic', messages: [] }) }).then(r => r.json()).catch(() => null)
-        if (cr?.ok) { setSessions([{ id: cr.session.id, title: cr.session.title, module: cr.session.module, count: 0, updatedAt: cr.session.updatedAt }]); setActiveSessionId(cr.session.id) }
+        if (cr?.ok) { setSessions([{ id: cr.session.id, title: cr.session.title, module: cr.session.module, count: 0, updatedAt: cr.session.updatedAt, contextChars: 0, contextLimit: 20000, contextPct: 0 }]); setActiveSessionId(cr.session.id) }
       }
     }).catch(() => {})
     setHydrated(true)
@@ -255,7 +257,7 @@ export default function Home() {
   async function newSession() {
     const mk = module || 'topic'
     const d = await fetch('/api/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: `${moduleOf(mk).label} mới`, module: mk, messages: [] }) }).then(r => r.json()).catch(() => null)
-    if (d?.ok) { await clearModuleNotebooks(mk); setSessions(s => [{ id: d.session.id, title: d.session.title, module: d.session.module, count: 0, updatedAt: d.session.updatedAt }, ...s]); setActiveSessionId(d.session.id); setMsgs([]) }
+    if (d?.ok) { await clearModuleNotebooks(mk); setSessions(s => [{ id: d.session.id, title: d.session.title, module: d.session.module, count: 0, updatedAt: d.session.updatedAt, contextChars: 0, contextLimit: 20000, contextPct: 0 }, ...s]); setActiveSessionId(d.session.id); setMsgs([]) }
   }
   async function deleteSession(id: string) {
     await fetch('/api/sessions?id=' + encodeURIComponent(id), { method: 'DELETE' }).catch(() => null)
@@ -267,13 +269,26 @@ export default function Home() {
     const found = sessions.filter(s => s.module === mk).sort((a, b) => b.updatedAt - a.updatedAt)[0]
     if (found) { await openSession(found.id); return }
     const d = await fetch('/api/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: `${moduleOf(mk).label} mới`, module: mk, messages: [] }) }).then(r => r.json()).catch(() => null)
-    if (d?.ok) { setSessions(s => [{ id: d.session.id, title: d.session.title, module: d.session.module, count: 0, updatedAt: d.session.updatedAt }, ...s]); setActiveSessionId(d.session.id); setMsgs([]) }
+    if (d?.ok) { setSessions(s => [{ id: d.session.id, title: d.session.title, module: d.session.module, count: 0, updatedAt: d.session.updatedAt, contextChars: 0, contextLimit: 20000, contextPct: 0 }, ...s]); setActiveSessionId(d.session.id); setMsgs([]) }
   }
+  useEffect(() => {
+    if (!module) return
+    fetch('/api/sessions?module=' + encodeURIComponent(module) + '&includeJobs=1').then(r => r.json()).then(d => {
+      if (d?.ok) {
+        setSessions(prev => {
+          const others = prev.filter(s => s.module !== module)
+          return [...(d.items || []), ...others].sort((a, b) => b.updatedAt - a.updatedAt)
+        })
+        setModuleQueue((d.jobs || []).filter((j: QueueItem) => j.module === module))
+      }
+    }).catch(() => {})
+  }, [module, msgs.length, activeSessionId])
   useEffect(() => {
     if (!hydrated || !activeSessionId || !module) return
     const t = setTimeout(() => {
       fetch('/api/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: activeSessionId, module, messages: msgs, title: msgs.find(m => m.role === 'user') && (msgs.find(m => m.role === 'user') as any).text?.slice(0, 50) || moduleOf(module).label }) }).catch(() => null)
-      setSessions(s => s.map(x => x.id === activeSessionId ? { ...x, module, count: msgs.length, updatedAt: Date.now() } : x))
+      const chars = summarizeSessionForAgent(msgs).fullText.length
+      setSessions(s => s.map(x => x.id === activeSessionId ? { ...x, module, count: msgs.length, updatedAt: Date.now(), contextChars: chars, contextLimit: 20000, contextPct: Math.min(100, Math.round((chars / 20000) * 100)) } : x))
     }, 800)
     return () => clearTimeout(t)
   }, [msgs, module, activeSessionId, hydrated])
@@ -283,10 +298,11 @@ export default function Home() {
   useEffect(() => { if (hydrated) localStorage.setItem(LS.msgs, JSON.stringify(msgs)) }, [msgs, hydrated])
   useEffect(() => { if (hydrated) localStorage.setItem(LS.input, input) }, [input, hydrated])
 
-  const queue = useMemo(() => msgs.filter((m): m is JobMsg => (m.role === 'run' || m.role === 'agent') && (!module || m.module === module)).slice().reverse(), [msgs, module])
+  const queue = useMemo(() => moduleQueue.slice(), [moduleQueue])
   const runningCount = queue.filter(q => q.status === 'running').length
   const moduleMsgs = useMemo(() => (module ? msgs.filter(m => !('module' in m) || m.module === module) : msgs), [msgs, module])
   const moduleSessions = useMemo(() => module ? sessions.filter(s => s.module === module) : sessions, [sessions, module])
+  const currentSessionMeta = useMemo(() => sessions.find(s => s.id === activeSessionId) || null, [sessions, activeSessionId])
 
   if (!authed) return <Login onDone={() => setAuthed(true)} />
   if (!module) return <ModulePicker settings={settings} onPick={pickModule} onSettings={() => { void pickModule('topic'); setView('settings') }} />
@@ -313,6 +329,7 @@ export default function Home() {
           {moduleSessions.slice(0, 6).map(s => (
             <button key={s.id} className={`session-item ${activeSessionId === s.id ? 'active' : ''}`} onClick={() => openSession(s.id)}>
               <span className="s-title">{s.title || 'Phiên mới'}</span><span className="s-mod">{moduleOf((s.module as ModuleKey) || 'topic').label}</span>
+              <span className="s-mod">ctx {s.contextChars}/{s.contextLimit} · {s.contextPct}%</span>
               <span className="s-del" onClick={e => { e.stopPropagation(); deleteSession(s.id) }}>×</span>
             </button>
           ))}
@@ -320,8 +337,8 @@ export default function Home() {
         <div className="sidebar-foot"><span className="dot" />Kientre · Hermes</div>
       </aside>
       <main className="main">
-        {view === 'chat' && <Chat module={module} activeSessionId={activeSessionId} settings={settings} setSettings={setSettings} msgs={moduleMsgs} setMsgs={setMsgs} input={input} setInput={setInput} />}
-        {view === 'queue' && <QueueView items={queue} setMsgs={setMsgs} />}
+        {view === 'chat' && <Chat module={module} activeSessionId={activeSessionId} sessionMeta={currentSessionMeta} moduleRunningCount={runningCount} settings={settings} setSettings={setSettings} msgs={moduleMsgs} setMsgs={setMsgs} input={input} setInput={setInput} />}
+        {view === 'queue' && <QueueView items={queue} setMsgs={setMsgs} module={module} />}
         {view === 'files' && <Files module={module} settings={settings} queue={queue} />}
         {view === 'notebooklm' && <NotebookLMView module={module} settings={settings} setSettings={setSettings} />}
         {view === 'skills' && <SkillsView module={module} />}
@@ -401,9 +418,11 @@ function AgentFlow({ current, status, module }: { current?: string; status: RunS
   )
 }
 
-function Chat({ module, activeSessionId, settings, setSettings, msgs, setMsgs, input, setInput }: {
+function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settings, setSettings, msgs, setMsgs, input, setInput }: {
   module: ModuleKey
   activeSessionId: string
+  sessionMeta: SessionMeta | null
+  moduleRunningCount: number
   settings: SettingsShape | null
   setSettings: (s: SettingsShape) => void
   msgs: Msg[]
@@ -425,7 +444,7 @@ function Chat({ module, activeSessionId, settings, setSettings, msgs, setMsgs, i
   const scrollRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const runningCount = msgs.filter(m => m.role === 'run' && m.status === 'running').length
+  const runningCount = moduleRunningCount
   const mod = moduleOf(module)
   const ModuleIcon = mod.icon
 
@@ -739,6 +758,7 @@ function Chat({ module, activeSessionId, settings, setSettings, msgs, setMsgs, i
             <div className="eyebrow">Module workspace</div>
             <h2>{mod.label}</h2>
             <div className="sub">{mod.desc} · {cfg?.subject || 'toán'} · lớp {cfg?.grade || '5'} · {MODE_OPTIONS.find(x => x.key === (cfg?.mode || 'detail'))?.label}</div>
+            {sessionMeta && <div className="sub">Phiên hiện tại: ctx {sessionMeta.contextChars}/{sessionMeta.contextLimit} · {sessionMeta.contextPct}% · {sessionMeta.count} tin</div>}
           </div>
         </div>
         <div className="module-hero-actions">
@@ -1391,39 +1411,47 @@ function helpText() {
   return base + '\n\n`/clear` hoặc `/reset` — làm mới cuộc trò chuyện'
 }
 
-function QueueView({ items, setMsgs }: { items: JobMsg[]; setMsgs: React.Dispatch<React.SetStateAction<Msg[]>> }) {
+function QueueView({ items, setMsgs, module }: { items: QueueItem[]; setMsgs: React.Dispatch<React.SetStateAction<Msg[]>>; module: ModuleKey }) {
   async function cancelJob(jobId: string) {
     await fetch(`/api/run?jobId=${encodeURIComponent(jobId)}`, { method: 'DELETE' }).catch(() => null)
     await fetch(`/api/agent?jobId=${encodeURIComponent(jobId)}`, { method: 'DELETE' }).catch(() => null)
     setMsgs(m => m.map(x => x.role === 'run' && x.id === jobId ? { ...x, status: 'error', logs: [...x.logs, '⏹ Đã gửi lệnh hủy'] } : x.role === 'agent' && x.id === jobId ? { ...x, status: 'error', steps: [...x.steps, { type: 'error', message: '⏹ Đã gửi lệnh hủy' }] } : x))
   }
-  function removeJob(jobId: string) { setMsgs(m => m.filter(x => x.id !== jobId)) }
-  function clearFinished() { setMsgs(m => m.filter(x => !(x.role === 'run' || x.role === 'agent') || x.status === 'running')) }
+  async function removeJob(job: QueueItem) {
+    await fetch('/api/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'remove_job', sessionId: job.sessionId, jobId: job.id }) }).catch(() => null)
+    setMsgs(m => m.filter(x => x.id !== job.id))
+    window.location.reload()
+  }
+  async function clearFinished() {
+    await fetch('/api/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'clear_jobs', module }) }).catch(() => null)
+    setMsgs(m => m.filter(x => !(x.role === 'run' || x.role === 'agent') || x.status === 'running'))
+    window.location.reload()
+  }
   const titleOf = (job: JobMsg) => job.role === 'run' ? job.command : job.task
   const agentOf = (job: JobMsg) => job.role === 'run' ? job.agent : currentAgentFromSteps(job.steps)
   const logOf = (job: JobMsg) => job.role === 'run' ? job.logs : agentTerminalLines(job)
   return (
     <>
       <div className="topbar">
-        <div><h2>Queue</h2><div className="sub">Hàng đợi xử lý · tất cả module</div></div>
+        <div><h2>Queue</h2><div className="sub">Hàng đợi tổng hợp của mọi phiên chat trong module {moduleOf(module).label}</div></div>
         <div className="top-actions"><button className="btn ghost" onClick={clearFinished}>Xóa job đã xong/lỗi</button></div>
       </div>
       <div className="content">
         <div className="card">
           {items.length === 0 ? <p className="desc">Chưa có job nào.</p> : (
             <table className="table">
-              <thead><tr><th>Module</th><th>Lệnh</th><th>Trạng thái</th><th>Agent</th><th>Bắt đầu</th><th></th></tr></thead>
+              <thead><tr><th>Phiên</th><th>Lệnh</th><th>Trạng thái</th><th>Agent</th><th>Bắt đầu</th><th></th></tr></thead>
               <tbody>
                 {items.map(job => (
                   <tr key={job.id}>
-                    <td>{moduleOf(job.module).label}</td>
+                    <td>{job.sessionTitle || moduleOf(job.module).label}</td>
                     <td className="wrap-cell">{titleOf(job)}</td>
                     <td><span className={`status ${job.status === 'done' ? 'ok' : job.status === 'error' ? 'err' : 'run'}`}>{job.status}</span></td>
                     <td>{job.status === 'running' ? (agentOf(job) || '—') : job.status === 'done' ? 'Word' : '—'}</td>
                     <td>{new Date(job.startedAt).toLocaleString('vi-VN')}</td>
                     <td><div className="inline-actions">
                       {job.status === 'running' && <button className="btn ghost mini" onClick={() => cancelJob(job.id)}>Hủy</button>}
-                      <button className="btn ghost mini" onClick={() => removeJob(job.id)}>Xóa</button>
+                      <button className="btn ghost mini" onClick={() => removeJob(job)}>Xóa</button>
                     </div></td>
                   </tr>
                 ))}
@@ -1437,7 +1465,7 @@ function QueueView({ items, setMsgs }: { items: JobMsg[]; setMsgs: React.Dispatc
               <div><h3>{titleOf(job)}</h3><p className="desc">{job.status === 'running' ? `Đang chạy — bước: ${agentOf(job) || '...'}` : job.status === 'done' ? 'Đã xong' : 'Có lỗi'}</p></div>
               <div className="inline-actions">
                 {job.status === 'running' && <button className="btn ghost mini" onClick={() => cancelJob(job.id)}>Hủy job</button>}
-                <button className="btn ghost mini" onClick={() => removeJob(job.id)}>Xóa khỏi queue</button>
+                <button className="btn ghost mini" onClick={() => removeJob(job)}>Xóa khỏi queue</button>
               </div>
             </div>
             {job.role === 'agent' ? <AgentProgressBar steps={job.steps} status={job.status} flow={AGENT_FLOWS[job.module] || AGENT_FLOWS.topic} /> : <AgentFlow current={job.agent} status={job.status} module={job.module} />}
@@ -1454,6 +1482,18 @@ function Files({ module, settings, queue }: { module: ModuleKey; settings: Setti
   const titleOf = (job: JobMsg) => job.role === 'run' ? job.command : job.task
   const cfg = settings?.modules?.[module]
   const withDrive = queue.filter(q => q.drive && q.drive.length > 0)
+  const [localFiles, setLocalFiles] = useState<any[]>([])
+  useEffect(() => {
+    const root = settings?.outputDir || ''
+    if (!root) return
+    fetch('/api/files?root=' + encodeURIComponent(root)).then(r => r.json()).then(d => setLocalFiles(d.files || [])).catch(() => setLocalFiles([]))
+  }, [settings?.outputDir, queue.length])
+  async function deleteLocalFile(rel: string) {
+    const root = settings?.outputDir || ''
+    if (!root) return
+    await fetch(`/api/files?root=${encodeURIComponent(root)}&rel=${encodeURIComponent(rel)}`, { method: 'DELETE' }).catch(() => null)
+    setLocalFiles(x => x.filter(f => f.rel !== rel))
+  }
   return (
     <>
       <div className="topbar">
@@ -1480,6 +1520,24 @@ function Files({ module, settings, queue }: { module: ModuleKey; settings: Setti
                     <td className="wrap-cell">{titleOf(job)}</td>
                   </tr>
                 )))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="card">
+          <h3>File local</h3>
+          {localFiles.length === 0 ? <p className="desc">Chưa có file local.</p> : (
+            <table className="table">
+              <thead><tr><th>File</th><th>Xem</th><th>Tải</th><th></th></tr></thead>
+              <tbody>
+                {localFiles.slice(0, 80).map(f => (
+                  <tr key={f.rel}>
+                    <td className="wrap-cell">{f.rel}</td>
+                    <td>{f.ext === '.pdf' || f.ext === '.docx' ? <a className="file-link" href={fileUrl(settings?.outputDir || '', 'preview', f.rel)} target="_blank" rel="noreferrer"><Eye size={13} /> Mở</a> : '—'}</td>
+                    <td><a className="file-link" href={fileUrl(settings?.outputDir || '', 'download', f.rel)}><Download size={13} /> Tải</a></td>
+                    <td><button className="btn ghost mini" onClick={() => deleteLocalFile(f.rel)}>Xóa local</button></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
@@ -1579,6 +1637,14 @@ function Dashboard({ settings, queue }: { settings: SettingsShape | null; queue:
     </>
   )
 }
+
+const ROUTER_SKILLS: { name: string; route: string; desc: string; url: string }[] = [
+  { name: '9Router (Entry)', route: 'START HERE', desc: 'Setup + index of all capabilities: base URL, auth, model discovery, links đến từng skill.', url: 'https://raw.githubusercontent.com/decolua/9router/refs/heads/master/skills/9router/SKILL.md' },
+  { name: 'Chat', route: '/v1/chat/completions', desc: 'Chat / code-gen qua 9Router với streaming + auto fallback.', url: 'https://raw.githubusercontent.com/decolua/9router/refs/heads/master/skills/9router-chat/SKILL.md' },
+  { name: 'Image Generation', route: '/v1/images/generations', desc: 'Text-to-image qua DALL-E / Imagen / FLUX / MiniMax / SDWebUI.', url: 'https://raw.githubusercontent.com/decolua/9router/refs/heads/master/skills/9router-image/SKILL.md' },
+  { name: 'Web Search', route: '/v1/search', desc: 'Tìm web qua Tavily / Exa / Brave / Serper / SearXNG / Google PSE.', url: 'https://raw.githubusercontent.com/decolua/9router/refs/heads/master/skills/9router-web-search/SKILL.md' },
+  { name: 'Web Fetch', route: '/v1/web/fetch', desc: 'Đọc URL thành markdown / text / HTML.', url: 'https://raw.githubusercontent.com/decolua/9router/refs/heads/master/skills/9router-web-fetch/SKILL.md' },
+]
 
 const PROVIDERS: { key: ProviderKey; label: string; hint: string; prefix: string; examples: string; placeholder: string; docs: string }[] = [
   { key: 'gemini', label: 'Google Gemini', hint: 'Gọi thẳng Google, không qua 9router.', prefix: 'gemini/', examples: 'gemini/gemini-2.5-flash, gemini/gemini-2.5-pro', placeholder: 'AIza…', docs: 'https://aistudio.google.com/apikey' },
@@ -1774,7 +1840,7 @@ function SettingsView({ settings, onSaved }: { settings: SettingsShape | null; o
 
         <div className="card">
           <div className="split-head">
-            <div><h3><Plug size={16} /> 9router (LLM gateway)</h3><p className="desc">Nhúng giao diện 9router để nhập API key ngay trong app.</p></div>
+            <div><h3><Plug size={16} /> 9router (LLM gateway)</h3><p className="desc">Nhúng giao diện 9router để nhập API key ngay trong app. Đồng thời hiện skill đúng vị trí để anh biết endpoint nào phục vụ tính năng nào.</p></div>
             <div className="inline-actions">
               <button className="btn ghost mini" onClick={() => setShowRouter(s => !s)}>{showRouter ? 'Ẩn' : 'Hiện'} 9router</button>
               <a className="btn ghost mini" href={routerUi} target="_blank" rel="noreferrer">Mở tab riêng</a>
@@ -1787,6 +1853,19 @@ function SettingsView({ settings, onSaved }: { settings: SettingsShape | null; o
               <p className="desc frame-note">Nếu khung trống, 9router chặn nhúng — bấm “Mở tab riêng”.</p>
             </div>
           )}
+          <div className="router-skill-grid">
+            {ROUTER_SKILLS.map(s => (
+              <div key={s.url} className={`router-skill-card ${s.route === 'START HERE' ? 'featured' : ''}`}>
+                <div className="router-skill-head">
+                  <div className="router-skill-title">{s.name}</div>
+                  <span className="router-route">{s.route}</span>
+                </div>
+                <div className="desc">{s.desc}</div>
+                <div className="router-skill-url"><a className="file-link" href={s.url} target="_blank" rel="noreferrer"><Link2 size={13} /> {s.url}</a></div>
+                <div className="router-skill-where">Dùng trong app: {s.name === 'Chat' ? 'Agent + chat loop' : s.name === 'Image Generation' ? 'Artist/ImageFetcher khi cần vẽ hoặc sinh ảnh' : s.name === 'Web Search' ? 'Source/NotebookLM + Examiner + WebSearch tool' : s.name === 'Web Fetch' ? 'bước đọc URL chi tiết / nguồn web' : 'thiết lập và tra cứu router'}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="card">

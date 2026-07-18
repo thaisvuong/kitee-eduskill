@@ -170,10 +170,11 @@ export async function runExam(params = {}) {
 
 function quizQuestionBlocks(q, detail) {
  const isMc = String(q.type || '').toLowerCase().includes('trắc')
+ const hints = (detail.hints || []).slice(0, 3).map((h, i) => `Gợi ý ${i + 1}: ${String(h).replace(/^Gợi ý\s*\d+\s*[:.\-]?\s*/i, '').trim()}`)
  const blocks = [{ type: 'subheading', text: `CÂU ${q.index} (${q.points} điểm${q.type ? ` · ${q.type}` : ''})` }]
  if (detail.imagePath) blocks.push({ type: 'image', path: detail.imagePath, caption: detail.visual })
  blocks.push({ type: 'exercise', title: 'Đề bài', question: [detail.question, isMc && detail.options?.length ? detail.options.join('\n') : ''].filter(Boolean).join('\n'), lines: q.type === 'tự luận' ? 6 : 2 })
- blocks.push({ type: 'note', title: 'Gợi ý', text: (detail.hints || []).join('\n') })
+ if (hints.length) blocks.push({ type: 'note', title: 'Gợi ý', text: hints.join('\n') })
  blocks.push({ type: 'solution', title: 'Đáp án đúng', content: detail.answer || '' })
  blocks.push({ type: 'solution', title: 'Lời giải chi tiết', content: detail.solution || '' })
  return blocks

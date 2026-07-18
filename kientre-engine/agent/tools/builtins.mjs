@@ -67,7 +67,7 @@ register('web_search',
  },
  async (args) => {
   const results = await searchWeb(String(args.query || ''), Number(args.n) || 5)
-  return { results: (results || []).map(r => ({ title: r.title, snippet: (r.snippet || '').slice(0, 500), url: r.url })) }
+  return { results: (results || []).map(r => ({ title: r.title, snippet: (r.snippet || '').slice(0, 500), url: r.url, image_url: r.image_url || '', images: (r.images || []).slice(0, 3).map(img => ({ url: img.url, alt: img.alt || '', context: (img.context || '').slice(0, 220) })) })) }
  })
 
 // ── analyze_document: extract text from an uploaded file (source material) ─

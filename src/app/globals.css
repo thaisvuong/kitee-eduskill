@@ -139,6 +139,15 @@ button, input, select, textarea { font: inherit; }
 .update-box.err { border-color: #ffd6d6; background: #fff5f5; color: #8b1e1e; }
 .update-box pre { margin: 8px 0 0; white-space: pre-wrap; font-size: 12px; }
 
+.router-skill-grid { display: grid; gap: 12px; margin-top: 16px; }
+.router-skill-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fff; }
+.router-skill-card.featured { background: var(--orange-soft); border-color: #f6caa5; }
+.router-skill-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.router-skill-title { font-weight: 800; color: var(--navy); }
+.router-route { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; background: var(--navy-soft); color: var(--navy); font-size: 12px; font-weight: 800; }
+.router-skill-url { margin-top: 8px; font-size: 12px; overflow-wrap: anywhere; }
+.router-skill-where { margin-top: 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
+
 /* ---------- Chat ---------- */
 .chat { display: flex; flex-direction: column; height: calc(100vh - 64px); }
 .chat-scroll { flex: 1; overflow-y: auto; padding: 24px 26px; }

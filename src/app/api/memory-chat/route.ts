@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server'
 import { readStore } from '@/lib/store'
 
+function moduleRunningJobs(sessions: any[], moduleKey: string) {
+ return (sessions || [])
+  .filter((s: any) => !moduleKey || s?.module === moduleKey)
+  .flatMap((s: any) => (s?.messages || []).filter((m: any) => (m?.role === 'run' || m?.role === 'agent') && m?.status === 'running').map((m: any) => ({
+   id: m.id,
+   module: m.module || s.module,
+   task: m.role === 'run' ? m.command : m.task,
+   kind: m.role,
+   status: m.status,
+  })))
+}
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -18,8 +30,11 @@ type SessionMemory = {
 export async function POST(req: Request) {
  const { message = '', sessionId = '', moduleKey = '', runningJobs = [] } = await req.json().catch(() => ({}))
  const data = await readStore<{ items: SessionMemory[] }>('session-memory', { items: [] })
+ const sessions = await readStore<{ items: any[] }>('sessions', { items: [] })
  const mem = data.items.find(x => x.id === sessionId) || null
- const jobs = Array.isArray(runningJobs) ? runningJobs : []
+ const jobs = moduleRunningJobs(sessions.items, String(moduleKey || ''))
+  .concat(Array.isArray(runningJobs) ? runningJobs : [])
+  .filter((j: any, i: number, arr: any[]) => arr.findIndex(x => String(x?.id || '') === String(j?.id || '')) === i)
  const t = String(message || '').toLowerCase()
  if (/đang làm|dang lam|task|việc gì|viec gi|đang thực hiện|dang thuc hien|tiến độ|tien do|trạng thái|trang thai/.test(t)) {
   const active = jobs.filter((j: any) => j?.status !== 'done' && j?.status !== 'error')

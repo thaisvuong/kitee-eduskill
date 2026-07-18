@@ -64,6 +64,16 @@ function routeLabel(target) {
  return target ? `${target.provider}:${target.base}` : `9router:${ROUTER}`
 }
 
+function normalizeModelId(id) {
+ return String(id || '').trim().replace(/^(gc|cx|cc|openrouter|gemini|deepseek|glm)\//i, '')
+}
+
+function sameModel(requested, responded) {
+ const a = normalizeModelId(requested)
+ const b = normalizeModelId(responded)
+ return !!a && !!b && a === b
+}
+
 function logModel(kind, meta = {}) {
  const bits = Object.entries(meta)
   .filter(([, v]) => v !== undefined && v !== null && v !== '')
@@ -126,7 +136,9 @@ async function callOnce(model, system, user, temperature = 0.5) {
  const data = await res.json().catch(() => ({}))
  if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`)
  if (!data.choices || !data.choices[0]) throw new Error(data.error?.message || 'Invalid API response')
- logModel('response', { requested: model, sent: sendModel, responded: data.model || sendModel, route: routeLabel(target), mode: 'text' })
+ const respondedModel = data.model || sendModel
+ logModel('response', { requested: model, sent: sendModel, responded: respondedModel, route: routeLabel(target), mode: 'text' })
+ if (!target && !sameModel(sendModel, respondedModel)) throw new Error(`router model mismatch: requested ${sendModel} but responded ${respondedModel}`)
  return data.choices[0].message.content.trim()
 }
 
@@ -163,6 +175,7 @@ export async function callModel(model, system, user, temperature = 0.5) {
    return await callWithRetries(m, system, user, temperature)
   } catch (err) {
    lastErr = err
+   if (!isRetryable(err)) throw err
    console.warn(`⚠️ Model ${m} failed: ${err.message}. Chuyển model...`)
   }
  }
@@ -201,7 +214,9 @@ async function chatOnce(model, messages, tools, temperature = 0.4) {
  if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`)
  const msg = data?.choices?.[0]?.message
  if (!msg) throw new Error(data.error?.message || 'Invalid API response (no message)')
- logModel('response', { requested: model, sent: sendModel, responded: data.model || sendModel, route: routeLabel(target), mode: 'chat', finishReason: data?.choices?.[0]?.finish_reason || '' })
+ const respondedModel = data.model || sendModel
+ logModel('response', { requested: model, sent: sendModel, responded: respondedModel, route: routeLabel(target), mode: 'chat', finishReason: data?.choices?.[0]?.finish_reason || '' })
+ if (!target && !sameModel(sendModel, respondedModel)) throw new Error(`router model mismatch: requested ${sendModel} but responded ${respondedModel}`)
  return msg
 }
 
@@ -222,6 +237,7 @@ export async function callChat({ model, messages, tools, temperature = 0.4 }) {
     await delay(RETRY_DELAY_MS)
    }
   }
+  if (!isRetryable(lastErr)) throw lastErr
   if (m !== model) logModel('fallback', { primary: model, fallbackTo: m, reason: lastErr?.message || 'unknown', mode: 'chat' })
   console.warn(`⚠️ callChat model ${m} failed: ${lastErr?.message}. Chuyển model...`)
  }
