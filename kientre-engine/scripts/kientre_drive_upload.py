@@ -137,12 +137,12 @@ def upload_raw_docx(token, path, parent):
                    'POST', body, {'Content-Type': f'multipart/related; boundary={bound}'})
 
 
-def upload_as_gdoc(token, path, parent):
+def upload_as_gdoc(token, path, parent, force_slim=False):
     """Upload converting to Google Docs (separate copy)."""
     p = pathlib.Path(path)
     upload_path = p
     tmp = None
-    if p.stat().st_size > 1_500_000:
+    if force_slim or p.stat().st_size > 1_500_000:
         tmp = p.with_name(p.stem + '_slim.docx')
         slim_docx(p, tmp)
         upload_path = tmp
@@ -156,15 +156,16 @@ def upload_as_gdoc(token, path, parent):
         f'Content-Type: {DOCX_MIME}\r\n\r\n'.encode(), data, b'\r\n',
         f'--{bound}--\r\n'.encode(),
     ])
-    res = request(token,
-                  'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',
-                  'POST', body, {'Content-Type': f'multipart/related; boundary={bound}'})
-    if tmp:
-        try:
-            tmp.unlink()
-        except Exception:
-            pass
-    return res
+    try:
+        return request(token,
+                       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',
+                       'POST', body, {'Content-Type': f'multipart/related; boundary={bound}'})
+    finally:
+        if tmp:
+            try:
+                tmp.unlink()
+            except Exception:
+                pass
 
 
 def main():
@@ -188,15 +189,23 @@ def main():
             skipped.append({'file': str(f), 'reason': 'missing'})
             continue
         docx = upload_raw_docx(token, f, args.folder)
-        gdoc = upload_as_gdoc(token, f, args.folder)
+        gdoc, gdoc_error = None, ''
+        try:
+            gdoc = upload_as_gdoc(token, f, args.folder)
+        except Exception as e:
+            try:
+                gdoc = upload_as_gdoc(token, f, args.folder, force_slim=True)
+            except Exception as e2:
+                gdoc_error = str(e2 or e)
         uploaded.append({
             'name': f.name,
             'docxId': (docx or {}).get('id'),
             'docxLink': (docx or {}).get('webViewLink'),
             'gdocId': (gdoc or {}).get('id'),
             'gdocLink': (gdoc or {}).get('webViewLink'),
+            'gdocError': gdoc_error,
         })
-        if args.delete_local:
+        if args.delete_local and gdoc:
             try:
                 f.unlink()
             except Exception:

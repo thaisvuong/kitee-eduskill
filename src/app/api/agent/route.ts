@@ -282,7 +282,7 @@ export async function POST(req: Request) {
       else {
        for (const u of res.uploaded) {
         driveUploads.push(u)
-        sse(controller, 'agent_step', { type: 'assistant', text: `☁️ ${u.name} → Docs: ${u.gdocLink}` })
+        sse(controller, 'agent_step', { type: 'assistant', text: u.gdocLink ? `☁️ ${u.name} → Docs: ${u.gdocLink}` : `☁️ ${u.name} → Word: ${u.docxLink}. ⚠️ Convert Docs lỗi: ${u.gdocError || 'không rõ'}` })
        }
       }
      }

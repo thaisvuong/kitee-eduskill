@@ -250,7 +250,7 @@ export async function POST(req: Request) {
        } else {
         for (const u of res.uploaded) {
          driveUploads.push(u)
-         sse(controller, 'log', { line: `☁️ ${u.name} → Docs: ${u.gdocLink}`, jobId })
+         sse(controller, 'log', { line: u.gdocLink ? `☁️ ${u.name} → Docs: ${u.gdocLink}` : `☁️ ${u.name} → Word: ${u.docxLink}. ⚠️ Convert Docs lỗi: ${u.gdocError || 'không rõ'}`, jobId })
         }
         if (res.skipped?.length) sse(controller, 'log', { line: `↷ Bỏ qua ${res.skipped.length} file không phải .docx`, jobId })
         sse(controller, 'log', { line: `🗑️ Đã xoá file local sau khi upload.`, jobId })

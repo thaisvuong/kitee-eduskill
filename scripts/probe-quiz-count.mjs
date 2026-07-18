@@ -15,6 +15,7 @@ const runners = await readFile(new URL('../kientre-engine/runners.mjs', import.m
 assert.match(runners, /trimQuizPlan\(await planQuizSet\([^\n]+quizCount: count/)
 assert.match(runners, /return \{ \.\.\.question, \.\.\.parsed,[^\n]+frameMd: raw\.slice\(0, 12000\)/)
 assert.match(runners, /const frameMd = renderQuizFrameMarkdown\(\{ topic, grade, subject, totalScore, timeMinutes, plan \}\)/)
+assert.match(runners, /split\('·'\)/)
 
 const examiner = await readFile(new URL('../kientre-engine/agents/examiner.mjs', import.meta.url), 'utf8')
 assert.match(examiner, /Nội dung khung\.md liên quan/)
@@ -24,5 +25,9 @@ assert.match(examiner, /if \(reference\) try/)
 const agentRoute = await readFile(new URL('../src/app/api/agent/route.ts', import.meta.url), 'utf8')
 assert.match(agentRoute, /KIENTRE_QUIZ_STREAM_GDOC: settings\.uploadDrive \? '1'/)
 assert.match(agentRoute, /normalizeDriveFolderId/)
+
+const uploader = await readFile(new URL('../kientre-engine/scripts/kientre_drive_upload.py', import.meta.url), 'utf8')
+assert.match(uploader, /force_slim=False/)
+assert.match(uploader, /if args\.delete_local and gdoc/)
 
 console.log('quiz-count probe ok')

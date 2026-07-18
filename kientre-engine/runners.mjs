@@ -20,11 +20,14 @@ function dateStr() { return new Date().toISOString().split('T')[0] }
 function gradeNum(grade) { const m = String(grade).match(/\d+/); return m ? m[0] : 'x' }
 function isTakenFrameLine(line) { return /<!--\s*TAKEN\s+[^>]+-->/.test(line) }
 function parseFrameQuestion(line) {
- const m = String(line).match(/^- \*\*Câu\s+(\d+)\*\*\s*\(([^·)]+)(?:·\s*([^)]+?))?\):\s*(.*)$/)
+ const m = String(line).match(/^- \*\*Câu\s+(\d+)\*\*\s*\(([^)]+)\):\s*(.*)$/)
  if (!m || isTakenFrameLine(line)) return null
- const tail = (m[4] || '').replace(/<!--.*?-->/g, '').trim()
+ const meta = String(m[2] || '').split('·').map(x => x.trim())
+ const points = Number((meta.find(x => /điểm/i.test(x)) || '').match(/[\d.]+/)?.[0] || 0)
+ const type = meta.find(x => !/điểm/i.test(x)) || ''
+ const tail = (m[3] || '').replace(/<!--.*?-->/g, '').trim()
  const [notePart, visualPart = ''] = tail.split(/\s+·\s+hình:\s*/i)
- return { index: Number(m[1]), points: Number(String(m[3] || '').match(/[\d.]+/)?.[0] || 0), type: m[2].trim(), note: notePart.trim(), visual: visualPart.trim(), frameLine: line.replace(/<!--.*?-->/g, '').trim() }
+ return { index: Number(m[1]), points, type, note: notePart.trim(), visual: visualPart.trim(), frameLine: line.replace(/<!--.*?-->/g, '').trim() }
 }
 async function takeFrameQuestion(framePath, quiz, question) {
  const raw = await readFile(framePath, 'utf8')
