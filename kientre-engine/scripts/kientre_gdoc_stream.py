@@ -61,7 +61,7 @@ SSL_CTX = _ssl_context()
 
 def token_file_path():
     home = os.environ.get('HERMES_HOME') or os.path.expanduser('~/.hermes')
-    return os.path.join(home, 'google_token.json')
+    return os.environ.get('GOOGLE_OAUTH_JSON') or os.path.join(home, 'google_token.json')
 
 
 def load_token(token_file):

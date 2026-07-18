@@ -28,7 +28,7 @@ export async function generateQuizQuestion(o, model = process.env.HERMES_EXAMINE
  const { grade, subject, topic, globalContext = '', quiz = {}, question = {}, reference = '' } = o
  const webQuery = `${topic} ${grade} ${subject} ${question.type || ''} ${question.note || ''}`.trim()
  let webRef = ''
- try {
+ if (reference) try {
   const web = await searchWeb(webQuery, 3)
   webRef = web.map((r, i) => `Nguồn ${i + 1}: ${r.title}\n${r.snippet || ''}\n${r.url || ''}`).join('\n\n').slice(0, 1800)
  } catch { /* ignore web failure */ }
@@ -40,10 +40,13 @@ export async function generateQuizQuestion(o, model = process.env.HERMES_EXAMINE
 Môn/lớp/chủ đề: ${subject} ${grade}, ${topic}
 Context chung: ${globalContext}
 Quiz: ${quiz.title || `Quiz ${quiz.index}`} · độ khó ${quiz.difficulty || ''} · mục tiêu ${quiz.goal || ''}
-Khung câu ĐÃ LẤY TỪ FILE khung.md: Câu ${question.index}, loại ${question.type}, ${question.points} điểm, note: ${question.note || ''}
+File khung.md: ${question.framePath || ''}
+Dòng khung.md ĐÃ ĐÁNH DẤU TAKEN: ${question.frameLine || `Câu ${question.index}, loại ${question.type}, ${question.points} điểm, note: ${question.note || ''}`}
+Nội dung khung.md liên quan:
+"""${String(question.frameMd || '').slice(0, 3000)}"""
 Yêu cầu hình: ${question.visual || 'không bắt buộc'}${ref}
 
-Không được tự chọn câu khác. Phải triển khai đúng note khung câu đã lấy ở trên.
+Không được tự chọn câu khác. Phải triển khai đúng dòng khung.md đã lấy ở trên.
 Ưu tiên: nếu có NGUỒN/TÀI LIỆU tham chiếu ở trên, hãy BÁM theo bài tập/dạng câu trong nguồn và CHẾ LẠI về đúng loại "${question.type}" (trắc nghiệm 4 lựa chọn / điền đáp án / tự luận). Không bịa nếu nguồn đã có dạng phù hợp.
 Câu hỏi phải khó hơn mức cơ bản, có bẫy hợp lệ theo note/độ khó QuizPlanner giao. Ưu tiên bẫy: dữ kiện thừa, phương án nhiễu rất gần đúng, nhầm đơn vị, nhầm thứ tự phép tính, nhầm điều kiện, nhầm khái niệm, nhầm đọc hình. Bẫy phải công bằng, không mơ hồ.
 Trả về: question, options (nếu trắc nghiệm), answer, hints, solution, visual.

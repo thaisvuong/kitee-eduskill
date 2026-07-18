@@ -24,7 +24,7 @@ function parseFrameQuestion(line) {
  if (!m || isTakenFrameLine(line)) return null
  const tail = (m[4] || '').replace(/<!--.*?-->/g, '').trim()
  const [notePart, visualPart = ''] = tail.split(/\s+·\s+hình:\s*/i)
- return { index: Number(m[1]), points: Number(String(m[3] || '').match(/[\d.]+/)?.[0] || 0), type: m[2].trim(), note: notePart.trim(), visual: visualPart.trim() }
+ return { index: Number(m[1]), points: Number(String(m[3] || '').match(/[\d.]+/)?.[0] || 0), type: m[2].trim(), note: notePart.trim(), visual: visualPart.trim(), frameLine: line.replace(/<!--.*?-->/g, '').trim() }
 }
 async function takeFrameQuestion(framePath, quiz, question) {
  const raw = await readFile(framePath, 'utf8')
@@ -40,7 +40,7 @@ async function takeFrameQuestion(framePath, quiz, question) {
  const parsed = parseFrameQuestion(lines[picked])
  lines[picked] = `${lines[picked]} <!-- TAKEN ${new Date().toISOString()} -->`
  await writeFile(framePath, lines.join('\n'), 'utf8')
- return { ...question, ...parsed, index: question.index || parsed.index }
+ return { ...question, ...parsed, index: question.index || parsed.index, framePath, frameMd: raw.slice(0, 12000) }
 }
 function judgeBoundaries(grade, subject) {
  return [

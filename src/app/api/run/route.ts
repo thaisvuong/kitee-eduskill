@@ -66,6 +66,11 @@ function collectLoggedDocxPaths(lines: string[], outputDir: string) {
  return [...found]
 }
 
+function normalizeDriveFolderId(value: unknown) {
+ const s = String(value || '').trim()
+ return s.match(/folders\/([A-Za-z0-9_-]+)/)?.[1] || s.match(/[?&]id=([A-Za-z0-9_-]+)/)?.[1] || s
+}
+
 // Provider API keys live only in the server-side settings file (never sent by the client).
 // Read them here and map to the env vars the engine's llm.mjs expects.
 async function readProviderKeyEnv(hermesHome: string): Promise<Record<string, string>> {
@@ -179,7 +184,7 @@ export async function POST(req: Request) {
 
    const routerBaseUrl = settings.routerBaseUrl || kientreConfig.routerBaseUrl
    const providerKeyEnv = await readProviderKeyEnv(settings.hermesHome || kientreConfig.hermesHome)
-   const moduleDriveFolderId = settings.driveFolderId || settings.driveParentId || kientreConfig.driveParentId
+   const moduleDriveFolderId = normalizeDriveFolderId(settings.driveFolderId || settings.driveParentId || kientreConfig.driveParentId)
    const env = {
     ...process.env,
     ...providerKeyEnv,
@@ -190,6 +195,7 @@ export async function POST(req: Request) {
     GOOGLE_OAUTH_JSON: settings.googleCredentialFile || kientreConfig.googleCredentialFile,
     HERMES_DRIVE_PARENT_ID: moduleDriveFolderId,
     KIENTRE_DRIVE_FOLDER_ID: moduleDriveFolderId,
+    KIENTRE_QUIZ_STREAM_GDOC: settings.uploadDrive ? '1' : (process.env.KIENTRE_QUIZ_STREAM_GDOC || ''),
     NINE_ROUTER_BASE_URL: routerBaseUrl,
     NINEROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
     HERMES_ROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
@@ -230,7 +236,7 @@ export async function POST(req: Request) {
      sse(controller, 'done', { code: 130, cancelled: true, created, outputDir, jobId })
     } else {
      const driveUploads: any[] = []
-     const driveFolderId = settings.driveFolderId || settings.driveParentId || driveParentId
+     const driveFolderId = driveParentId
      const tokenFile = settings.googleCredentialFile || kientreConfig.googleCredentialFile || path.join(hermesHome, 'google_oauth.json')
      if ((code ?? 1) === 0 && settings.uploadDrive && driveFolderId) {
       const createdFiles = await collectResultFiles(outputDir, created)

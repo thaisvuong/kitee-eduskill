@@ -14,7 +14,7 @@ import { SLASH_COMMANDS, suggestCommands, findCommand, type SlashCommand } from 
 type ModuleKey = 'topic' | 'quiz' | 'test' | 'solve' | 'review'
 const MODULES: { key: ModuleKey; label: string; desc: string; command: string; needsFile: boolean; icon: any }[] = [
   { key: 'topic', label: 'Soạn chuyên đề', desc: 'Lý thuyết + ví dụ + bài tập + đáp án', command: '/es-create', needsFile: false, icon: BookOpen },
-  { key: 'quiz', label: 'Soạn quiz theo chuyên đề', desc: 'Bộ quiz cấp độ 1→5 · tự soạn hoặc bám tài liệu/NotebookLM', command: '/es-create', needsFile: false, icon: ClipboardList },
+  { key: 'quiz', label: 'Soạn quiz theo chuyên đề', desc: 'Số quiz theo UI · tự soạn hoặc bám tài liệu/NotebookLM', command: '/es-create', needsFile: false, icon: ClipboardList },
   { key: 'test', label: 'Soạn đề kiểm tra', desc: 'Trắc nghiệm + điền + tự luận kèm biểu điểm', command: '/es-test', needsFile: false, icon: ClipboardList },
   { key: 'solve', label: 'Giải chi tiết', desc: 'Giải từng câu trong tài liệu đã tải lên', command: '/es-solve', needsFile: true, icon: Wand2 },
   { key: 'review', label: 'Nhận xét (review)', desc: 'Thẩm định điểm mạnh, lỗi, cải thiện', command: '/es-review', needsFile: true, icon: CheckCircle2 },
@@ -45,7 +45,7 @@ const MODULE_SKILLS: Record<ModuleKey, { key: string; label: string; desc: strin
     { key: 'notebook', label: 'Dùng NotebookLM', desc: 'Ưu tiên sổ tay đã chọn', patch: { mode: 'notebook', agentMode: true } },
   ],
   quiz: [
-    { key: 'quiz5', label: 'Quiz 5 mức', desc: 'Mỗi chuyên đề có cấp 1→5', patch: { agentMode: true, difficulty: 'mixed' } },
+    { key: 'quiz-ui', label: 'Quiz theo UI', desc: 'Số lượng lấy từ ô Số quiz', patch: { agentMode: true, difficulty: 'mixed' } },
     { key: 'quick', label: 'Quiz nhanh', desc: 'Ít câu, kiểm tra nhanh', patch: { agentMode: true, difficulty: 'easy', quizCount: 3 } },
     { key: 'hard', label: 'Quiz nâng cao', desc: 'Tăng phân hoá', patch: { agentMode: true, difficulty: 'hard' } },
   ],
@@ -1183,7 +1183,7 @@ function ModuleSettingsModal({ module, cfg, setModuleField, models, notebooks, n
             <div className="field add-subject"><label>Thêm môn</label><div className="inline-input-action"><input value={newSubject} placeholder="VD: lịch sử" onChange={e => setNewSubject(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addSubject() }} /><button className="btn ghost mini" onClick={addSubject} disabled={!newSubject.trim()}>Thêm</button></div></div>
             <div className="field"><label>Lớp</label><select value={cfg.grade || '5'} onChange={e => setModuleField('grade', e.target.value as any)}>{['1','2','3','4','5','6','7','8','9'].map(g => <option key={g} value={g}>Lớp {g}</option>)}</select></div>
             <div className="field wide"><label>Model</label><select value={cfg.model || ''} onChange={e => setModuleField('model', e.target.value as any)}>{cfg.model && !models.includes(cfg.model) && <option value={cfg.model}>{cfg.model}</option>}{models.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
-            <div className="field wide"><label>Folder Drive output</label><input value={cfg.driveFolderUrl || cfg.driveFolderId || ''} placeholder="https://drive.google.com/drive/folders/..." onChange={e => { const v = e.target.value; const id = v.match(/folders\/([A-Za-z0-9_-]+)/)?.[1] || v.trim(); setModuleField('driveFolderUrl', v as any); setModuleField('driveFolderId', id as any); setModuleField('driveFolderName', '' as any) }} /></div>
+            <div className="field wide"><label>Folder Drive output</label><input value={cfg.driveFolderUrl || cfg.driveFolderId || ''} placeholder="https://drive.google.com/drive/folders/..." onChange={e => { const v = e.target.value; const id = v.match(/folders\/([A-Za-z0-9_-]+)/)?.[1] || v.match(/[?&]id=([A-Za-z0-9_-]+)/)?.[1] || v.trim(); setModuleField('driveFolderUrl', v as any); setModuleField('driveFolderId', id as any); setModuleField('driveFolderName', '' as any) }} /></div>
             <label className="check-row inline"><input type="checkbox" checked={!!cfg.uploadDrive} onChange={e => setModuleField('uploadDrive', e.target.checked as any)} /> Upload .docx lên Drive + convert Google Docs</label>
           </div>
 

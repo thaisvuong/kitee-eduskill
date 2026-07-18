@@ -164,9 +164,9 @@ register('run_skill',
   const subject = ctx.subject || 'Toán'
   const sourceRefs = (ctx.sources || []).map(s => String(s.content || '').trim()).filter(Boolean).join('\n\n').slice(0, 12000)
   const notebook = (ctx.notebookIds || []).join(',') || ctx.activeNotebookId || ''
-  const hasExternalSource = ['topic', 'quiz', 'test'].includes(args.skill) || !!(sourceRefs || notebook)
+  const hasExternalSource = !!(sourceRefs || notebook)
   let wordPath
-  if (args.skill === 'quiz') wordPath = await runQuizSet({ grade, subject, topic: args.topic || '', quizCount: args.quizCount || ctx.quizSpec?.quizCount || 3, totalScore: args.totalScore || ctx.quizSpec?.totalScore || 10, timeMinutes: args.timeMinutes || ctx.quizSpec?.timeMinutes || 14, reference: sourceRefs, notebook, useWeb: hasExternalSource, onProgress: ctx.onStep })
+  if (args.skill === 'quiz') wordPath = await runQuizSet({ grade, subject, topic: args.topic || '', quizCount: args.quizCount ?? ctx.quizSpec?.quizCount ?? 3, totalScore: args.totalScore ?? ctx.quizSpec?.totalScore ?? 10, timeMinutes: args.timeMinutes ?? ctx.quizSpec?.timeMinutes ?? 14, reference: sourceRefs, notebook, useWeb: hasExternalSource, onProgress: ctx.onStep })
   else if (args.skill === 'topic') wordPath = await composeDocument(args.topic || '', grade, subject, { depth: 'detailed', special: args.special || '', refs: sourceRefs, notebook, useWeb: hasExternalSource })
   else if (args.skill === 'exam') wordPath = await runExam({ grade, subject, topic: args.topic || '', mc: args.mc || 10, fill: args.fill || 5, essay: args.essay || 3, special: args.special || '', reference: sourceRefs, notebook, useWeb: hasExternalSource })
   else if (args.skill === 'solve') {

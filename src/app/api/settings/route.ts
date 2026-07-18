@@ -103,7 +103,7 @@ async function readSettings() {
      ...s.modules[k],
      agentMode: s.modules[k].agentMode ?? true,
      persona: s.modules[k].persona || 'Bạn là giáo viên tiểu học chuyên thiết kế quiz theo chuyên đề, phân tầng độ khó rõ ràng.',
-     systemPrompt: s.modules[k].systemPrompt || 'Soạn quiz theo chuyên đề: mặc định 5 quiz cấp độ 1 đến 5, mỗi cấp độ khó hơn cấp trước. Mỗi quiz gồm trắc nghiệm, điền đáp án và tự luận. Có tổng điểm, thời gian làm bài, lời giải chi tiết cho tự luận và điểm từng ý.',
+     systemPrompt: s.modules[k].systemPrompt || 'Soạn quiz theo chuyên đề: số quiz lấy đúng từ UI, không mặc định 5. Mỗi quiz khó dần nếu có nhiều quiz; nếu chỉ 1 quiz thì chỉ tạo Quiz 1. Mỗi quiz gồm trắc nghiệm, điền đáp án và tự luận. Có tổng điểm, thời gian làm bài, lời giải chi tiết cho tự luận và điểm từng ý.',
     }
    }
   }

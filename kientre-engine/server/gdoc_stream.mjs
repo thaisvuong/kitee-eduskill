@@ -46,6 +46,7 @@ function run(action, payload) {
 // Create a Google Doc. Returns { documentId, url } or null.
 export async function createQuizDoc(title, folderId = '', tokenFile = '') {
   const res = await run('create', { title, folder: folderId || '', tokenFile: tokenFile || undefined })
+  if (!res?.ok) console.warn(`⚠️ Google Docs create failed: ${res?.error || 'unknown'}`)
   return res?.ok ? { documentId: res.documentId, url: res.url } : null
 }
 
@@ -53,5 +54,6 @@ export async function createQuizDoc(title, folderId = '', tokenFile = '') {
 export async function appendQuizQuestion(documentId, question, tokenFile = '') {
   if (!documentId) return false
   const res = await run('append', { documentId, question, tokenFile: tokenFile || undefined })
+  if (!res?.ok) console.warn(`⚠️ Google Docs append failed: ${res?.error || 'unknown'}`)
   return !!res?.ok
 }

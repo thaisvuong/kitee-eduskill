@@ -134,6 +134,11 @@ async function uploadDocxToDrive(files: string[], folderId: string, tokenFile: s
  })
 }
 
+function normalizeDriveFolderId(value: unknown) {
+ const s = String(value || '').trim()
+ return s.match(/folders\/([A-Za-z0-9_-]+)/)?.[1] || s.match(/[?&]id=([A-Za-z0-9_-]+)/)?.[1] || s
+}
+
 // Assemble the agent payload from stored config + skills + sources.
 async function buildPayload(moduleKey: string, task: string, history: any[], settings: Record<string, any>, memory: SessionMemory | null = null) {
  const mod = { ...(settings?.modules?.[moduleKey] || {}), ...settings }
@@ -221,7 +226,7 @@ export async function POST(req: Request) {
 
    const providerKeyEnv = await readProviderKeyEnv(settings.hermesHome || kientreConfig.hermesHome)
    const routerBaseUrl = settings.routerBaseUrl || kientreConfig.routerBaseUrl
-   const moduleDriveFolderId = settings.driveFolderId || settings.driveParentId || kientreConfig.driveParentId
+   const moduleDriveFolderId = normalizeDriveFolderId(settings.driveFolderId || settings.driveParentId || kientreConfig.driveParentId)
    const env = {
     ...process.env, ...providerKeyEnv, ...eduAgentEnv(settings),
     HERMES_WORKSPACE_DIR: settings.workspaceDir || kientreConfig.workspaceDir,
@@ -230,6 +235,7 @@ export async function POST(req: Request) {
     GOOGLE_OAUTH_JSON: settings.googleCredentialFile || kientreConfig.googleCredentialFile,
     HERMES_DRIVE_PARENT_ID: moduleDriveFolderId,
     KIENTRE_DRIVE_FOLDER_ID: moduleDriveFolderId,
+    KIENTRE_QUIZ_STREAM_GDOC: settings.uploadDrive ? '1' : (process.env.KIENTRE_QUIZ_STREAM_GDOC || ''),
     NINE_ROUTER_BASE_URL: routerBaseUrl,
     NINEROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
     HERMES_ROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
