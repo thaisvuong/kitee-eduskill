@@ -10,10 +10,10 @@ export function trimQuizPlan(plan = {}, quizCount = 1) {
  return { globalContext: plan?.globalContext || '', quizzes }
 }
 
-export async function planQuizSet({ topic, grade, subject, quizCount = 3, totalScore = 10, timeMinutes = 14, reference = '' }, model = process.env.HERMES_QUIZ_PLANNER_MODEL || process.env.HERMES_ARCHITECT_MODEL || 'cc/claude-opus-4-8') {
+export async function planQuizSet({ topic, grade, subject, quizCount = 3, totalScore = 10, timeMinutes = 14, reference = '' }, model = process.env.HERMES_QUIZ_PLANNER_MODEL || process.env.HERMES_ARCHITECT_MODEL || process.env.HERMES_WORKER_MODEL || 'cc/claude-opus-4-8') {
  const count = normalizeQuizCount(quizCount)
  const ref = reference ? `\nNGUỒN/TÀI LIỆU PHẢI BÁM THEO:\n"""${String(reference).slice(0, 6000)}"""` : '\nKhông có tài liệu riêng: tự soạn theo chương trình, không tạo lý thuyết/ví dụ chuyên đề.'
- const system = 'Bạn là QuizPlanner mạnh. Chỉ lập khung dữ liệu quiz, không viết lời giải dài. LUÔN trả JSON hợp lệ.'
+ const system = 'Bạn là QuizPlanner mạnh (model mạnh nhất). Chỉ lập KHUNG DẠNG BÀI, không viết đề hoàn chỉnh hay đáp án. Nhiệm vụ: đọc Architect boundaries, chọn dạng bài phù hợp ranh giới lớp, mô tả dạng bài + dữ kiện dự kiến + bẫy + năng lực. LUÔN trả JSON hợp lệ, không kèm markdown.'
  const user = `Lập KHUNG cho ĐÚNG ${count} quiz môn ${subject} ${grade}, chủ đề "${topic}". Mỗi quiz ${totalScore} điểm, ${timeMinutes} phút.${ref}
 
 BẮT BUỘC:
@@ -26,7 +26,15 @@ BẮT BUỘC:
 - Nếu là Toán Lớp 5: không lập dạng chia phân số, không dùng phân số đảo ngược, không ghi BCNN/bội chung nhỏ nhất/mẫu số chung nhỏ nhất; chỉ dùng cộng, trừ, nhân phân số, so sánh, rút gọn, tìm phân số của một số, bài toán lời văn vừa sức.
 - Nếu là Khoa học Lớp 5 và chủ đề rộng như vật chất/năng lượng: ưu tiên câu quan sát/phân loại rõ một bước; tránh que diêm cháy, năng lượng hóa học, khí không nhìn thấy, hoặc câu tự luận nhiều tiêu chí nếu không có bảng dữ kiện đầy đủ.
 - Nếu là Tiếng Việt Lớp 5: ưu tiên dạng an toàn, ít tranh cãi (đồng nghĩa/trái nghĩa, điền từ đúng ngữ cảnh, dấu câu, câu đơn giản). Tránh dạng phân loại từ ghép/từ láy/từ nhiều nghĩa nếu có thể gây tranh luận học thuật hoặc phụ thuộc ví dụ gượng ép.
-- Nếu là Tiếng Anh Lớp 5: chỉ dùng các dạng dễ chấm và tự đủ dữ kiện như trắc nghiệm 4 lựa chọn, điền từ có câu hoàn chỉnh, hoặc sửa lỗi trực tiếp trong câu. Tránh dạng nối/sắp xếp từ/chọn phương án A-B-C-D nếu đề không thể hiện đầy đủ danh sách, hình hoặc các phương án.
+- Nếu là Tiếng Anh Lớp 5: CHIA THEO KỸ NĂNG trong note của từng câu. Các dạng hợp lệ:
+  + Nghe (Listening): note phải bắt đầu bằng "[Nghe]" kèm mô tả nội dung đoạn hội thoại/đoạn văn ngắn; Examiner sẽ tạo transcript + câu hỏi trắc nghiệm dựa trên transcript đó. Transcript phải là tiếng Anh đơn giản, Lớp 5, độ dài 40-80 từ.
+  + Đọc (Reading): note phải bắt đầu bằng "[Đọc]" kèm chủ đề đoạn văn; Examiner sẽ tạo đoạn văn ngắn + câu hỏi đọc hiểu.
+  + Ngữ pháp (Grammar): note bắt đầu bằng "[Ngữ pháp]" kèm chủ điểm ngữ pháp cụ thể (ví dụ: thì hiện tại đơn, so sánh hơn, giới từ, đại từ). Dạng trắc nghiệm hoặc điền từ.
+  + Từ vựng (Vocabulary): note bắt đầu bằng "[Từ vựng]" kèm chủ đề từ vựng. Dạng trắc nghiệm hoặc điền từ.
+  - Với Nghe: câu hỏi là trắc nghiệm 4 lựa chọn, KHÔNG cần audio file — thay vào đó Examiner tạo TRANSCRIPT để giáo viên đọc hoặc thu âm. Transcript nằm trong solution field.
+  - Với Đọc: đoạn văn ngắn (50-100 từ) trong question field, câu hỏi trắc nghiệm bên dưới.
+  - Với Ngữ pháp/Từ vựng: trắc nghiệm 4 lựa chọn hoặc điền từ vào chỗ trống.
+  - Tránh dạng nối/sắp xếp từ/tìm lỗi nếu không hiển thị đầy đủ các thành phần.
 - Nếu là Lịch sử và Địa lý Lớp 5: tránh câu phụ thuộc bản đồ/vị trí đánh số nếu không chắc tạo được bản đồ rõ. Nếu không có hình, đổi sang câu mô tả bằng chữ. Tránh nội dung có thể lệch bộ sách như số đại dương nếu chưa khóa chuẩn.
 - Nếu thời gian rất ngắn (≤5 phút), chỉ lập 2-3 câu ngắn; không lập tự luận nhiều bước hoặc bài toán lời văn dài.
 - Mỗi câu có: số điểm, loại câu, và note là DẠNG BÀI (chỉ mô tả loại bài + dữ kiện dự kiến + bẫy + năng lực), KHÔNG phải đề bài hoàn chỉnh.

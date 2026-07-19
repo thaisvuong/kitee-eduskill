@@ -232,6 +232,27 @@ function quizQuestionBlocks(q, detail) {
  const meta = { index: q.index, type: q.type, points: q.points, note: q.note, visual: q.visual, framePath: q.framePath, frameLine: q.frameLine, frameMd: q.frameMd }
  const blocks = [{ type: 'subheading', text: `CÂU ${q.index} (${q.points} điểm${q.type ? ` · ${q.type}` : ''})`, quizQuestion: meta }]
  if (detail.imagePath) blocks.push({ type: 'image', path: detail.imagePath, caption: detail.visual })
+ // Extract transcript from solution for English listening questions
+ let solutionText = clean(detail.solution)
+ let extractedTranscript = detail.transcript || ''
+ if (!extractedTranscript && (q.note || '').includes('[Nghe]')) {
+   const m = solutionText.match(/Transcript:\s*\n?([\s\S]+?)(?=\n\n|Đáp án|$)/i)
+   if (m) {
+     extractedTranscript = clean(m[1]).trim()
+     solutionText = solutionText.replace(m[0], '').trim()
+   }
+ }
+ // Extract passage from solution for English reading questions
+ let extractedPassage = detail.passage || ''
+ if (!extractedPassage && (q.note || '').includes('[Đọc]')) {
+   const m = solutionText.match(/Passage:\s*\n?([\s\S]+?)(?=\n\n|Questions:|Câu hỏi|$)/i)
+   if (m) {
+     extractedPassage = clean(m[1]).trim()
+     solutionText = solutionText.replace(m[0], '').trim()
+   }
+ }
+ if (extractedTranscript) blocks.push({ type: 'note', title: '🎧 Transcript (Nghe)', text: extractedTranscript, quizQuestion: meta })
+ if (extractedPassage) blocks.push({ type: 'note', title: '📖 Đoạn văn (Đọc)', text: extractedPassage, quizQuestion: meta })
  const visualText = detail.visual && !detail.imagePath ? `Mô tả hình: ${detail.visual}` : ''
  const questionText = detail.visual && !detail.imagePath ? clean(detail.question).replace(/hình\s+(vẽ\s+)?(dưới đây|sau đây)/gi, 'mô tả sau') : clean(detail.question)
  const renderedAnswer = isMatch || isOrdering || isFixing ? '' : clean(detail.answer)
@@ -239,13 +260,32 @@ function quizQuestionBlocks(q, detail) {
  blocks.push({ type: 'exercise', title: 'Đề bài', question: renderedQuestion, lines: q.type === 'tự luận' ? 6 : 2, quizQuestion: meta })
  if (hints.length) blocks.push({ type: 'note', title: 'Gợi ý', text: hints.join('\n'), quizQuestion: meta })
  blocks.push({ type: 'solution', title: 'Đáp án đúng', content: renderedAnswer, quizQuestion: meta })
- blocks.push({ type: 'solution', title: 'Lời giải chi tiết', content: clean(detail.solution), quizQuestion: meta })
+ blocks.push({ type: 'solution', title: 'Lời giải chi tiết', content: solutionText, quizQuestion: meta })
  return blocks
 }
 
-function preferTikzFirst(visual = '') {
- const s = String(visual || '').toLowerCase()
- return /ô vuông|o vuong|lưới|luoi|tô màu|to mau|hình chữ nhật|hinh chu nhat|hình vuông|hinh vuong|tam giác|tam giac|phân số|phan so|đường chéo|duong cheo|góc|goc|abcd|efgh|trục|toa do|tọa độ|biểu đồ|bieu do/.test(s)
+function preferTikzFirst(subject = '', topic = '', visual = '') {
+ const subj = String(subject || '').toLowerCase()
+ const s = `${topic} ${visual}`.toLowerCase()
+ if (subj.includes('toán')) {
+  return /ô vuông|o vuong|lưới|luoi|tô màu|to mau|hình chữ nhật|hinh chu nhat|hình vuông|hinh vuong|tam giác|tam giac|phân số|phan so|đường chéo|duong cheo|góc|goc|abcd|efgh|trục|toa do|tọa độ|biểu đồ|bieu do|hình lập phương|hinh lap phuong|hình hộp chữ nhật|hinh hop chu nhat|hình trụ|hinh tru|khối lập phương|khoi lap phuong|khối hộp chữ nhật|khoi hop chu nhat/.test(s)
+ }
+ if (subj.includes('khoa')) {
+  return /sơ đồ|so do|chu trình|vòng tuần hoàn|vong tuan hoan|quá trình|qua trinh|các trạng thái|cac trang thai|rắn|lỏng|khí|ran|long|khi|thí nghiệm|thi nghiem|mũi tên|mui ten|phân loại|phan loai|bảng|bang/.test(s)
+ }
+ return /biểu đồ|bieu do|sơ đồ|so do/.test(s)
+}
+
+function avoidWebPhoto(subject = '', topic = '', visual = '') {
+ const subj = String(subject || '').toLowerCase()
+ const s = `${topic} ${visual}`.toLowerCase()
+ if (subj.includes('toán')) {
+  return /hình 1|hinh 1|hình 2|hinh 2|hình 3|hinh 3|quan sát các hình|quan sat cac hinh|hình lập phương|hinh lap phuong|hình hộp chữ nhật|hinh hop chu nhat|hình trụ|hinh tru|khối/.test(s)
+ }
+ if (subj.includes('khoa')) {
+  return /trạng thái của chất|trang thai cua chat|sơ đồ|so do|chu trình|vòng tuần hoàn|vong tuan hoan|thí nghiệm|thi nghiem|phân loại|phan loai|bảng|bang|mũi tên|mui ten|các bước|cac buoc/.test(s)
+ }
+ return false
 }
 
 function normalizeQuestionPlan(question, subject) {
@@ -257,6 +297,24 @@ function normalizeQuestionPlan(question, subject) {
  const push = extra => { out.note = [String(out.note || '').trim(), extra].filter(Boolean).join(' | ') }
 
  if (subj.includes('tiếng anh')) {
+  // English skill-type routing: force correct question type + add context
+  const noteLower = note.toLowerCase()
+  if (note.includes('[nghe]') || noteLower.includes('listening')) {
+   out.type = 'trắc nghiệm'
+   push('Dạng Nghe: tạo transcript + câu hỏi trắc nghiệm 4 lựa chọn dựa trên transcript. Transcript trong trường transcript.')
+  } else if (note.includes('[đọc]') || noteLower.includes('reading')) {
+   out.type = 'trắc nghiệm'
+   push('Dạng Đọc: tạo đoạn văn ngắn + câu hỏi trắc nghiệm 4 lựa chọn. Đoạn văn trong trường passage.')
+  } else if (note.includes('[ngữ pháp]') || noteLower.includes('grammar')) {
+   out.type = out.type || 'trắc nghiệm'
+   push('Dạng Ngữ pháp: trắc nghiệm hoặc điền từ về chủ điểm ngữ pháp cụ thể.')
+  } else if (note.includes('[từ vựng]') || noteLower.includes('vocabulary')) {
+   out.type = out.type || 'trắc nghiệm'
+   push('Dạng Từ vựng: trắc nghiệm hoặc điền từ theo chủ đề.')
+  } else {
+   // default English: multiple choice grammar/vocab
+   out.type = out.type || 'trắc nghiệm'
+  }
   if (type.includes('nối')) {
    out.type = 'trắc nghiệm'
    push('Chuyển thành trắc nghiệm 4 lựa chọn tự đủ dữ kiện; không phụ thuộc cột nối hay hình rời.')
@@ -350,11 +408,13 @@ export async function runQuizSet(params = {}) {
     const img = path.join(outDir, 'images', `quiz${quiz.index}_cau${q.index}.png`)
     try {
      // Hình toán có cấu trúc rõ: ưu tiên TikZ trước để tránh ảnh web sai mô tả.
-     if (preferTikzFirst(detail.visual)) {
+     const structured = preferTikzFirst(subject, topic, detail.visual)
+     const noWebPhoto = avoidWebPhoto(subject, topic, detail.visual)
+     if (structured) {
       if (await drawTikzFigure(detail.visual, img)) detail.imagePath = img
-      else if (await fetchImage(`${topic} ${detail.visual}`, img)) detail.imagePath = img
+      else if (!noWebPhoto && await fetchImage(`${topic} ${detail.visual}`, img)) detail.imagePath = img
      } else {
-      if (await fetchImage(`${topic} ${detail.visual}`, img)) detail.imagePath = img
+      if (!noWebPhoto && await fetchImage(`${topic} ${detail.visual}`, img)) detail.imagePath = img
       else if (await drawTikzFigure(detail.visual, img)) detail.imagePath = img
      }
     } catch { /* hình không làm fail câu */ }

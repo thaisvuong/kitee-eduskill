@@ -1,7 +1,7 @@
 import { chatJSON } from '../server/llm.mjs'
 
 /** Bộ điều phối hội thoại: đọc lịch sử chat -> xác định ý định + tham số, hỏi lại nếu thiếu. */
-export async function parseIntent(history, hasFile = false, model = process.env.HERMES_JUDGE_MODEL || 'cx/gpt-5.5') {
+export async function parseIntent(history, hasFile = false, model = process.env.HERMES_INTENT_MODEL || process.env.HERMES_WORKER_MODEL || process.env.HERMES_JUDGE_MODEL || 'cx/gpt-5.5') {
  const convo = history.map(m => `${m.role === 'user' ? 'NGƯỜI DÙNG' : 'TRỢ LÝ'}: ${m.text}`).join('\n')
  const system = "Bạn là BỘ ĐIỀU PHỐI của trợ lý soạn tài liệu giáo dục Việt Nam. Đọc hội thoại, xác định Ý ĐỊNH và THAM SỐ, và HỎI LẠI (kèm lựa chọn) cho những thông tin BẮT BUỘC còn thiếu. LUÔN trả JSON hợp lệ, không kèm gì ngoài JSON."
  const prompt = `Hội thoại (đã có tệp tải lên: ${hasFile ? 'CÓ' : 'KHÔNG'}):

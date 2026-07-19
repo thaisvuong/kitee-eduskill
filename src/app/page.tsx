@@ -22,6 +22,25 @@ const MODULES: { key: ModuleKey; label: string; desc: string; command: string; n
 const isModuleKey = (v: unknown): v is ModuleKey => MODULES.some(m => m.key === v)
 const moduleOf = (k: ModuleKey | string) => MODULES.find(m => m.key === k) || MODULES[0]
 
+// ---- Subjects ------------------------------------------------------------
+const SUBJECTS = [
+  { key: 'toán', label: 'Toán' },
+  { key: 'tiếng việt', label: 'Tiếng Việt' },
+  { key: 'khoa học', label: 'Khoa học' },
+  { key: 'tiếng anh', label: 'Tiếng Anh' },
+  { key: 'lịch sử', label: 'Lịch sử' },
+  { key: 'địa lý', label: 'Địa lý' },
+]
+
+const ENGLISH_SKILLS = [
+  { key: '', label: '-- Chọn kỹ năng --' },
+  { key: '[Nghe]', label: '🎧 Nghe (Listening)' },
+  { key: '[Đọc]', label: '📖 Đọc (Reading)' },
+  { key: '[Ngữ pháp]', label: '📝 Ngữ pháp (Grammar)' },
+  { key: '[Viết]', label: '✏️ Viết (Writing)' },
+  { key: '[Từ vựng]', label: '📚 Từ vựng (Vocabulary)' },
+]
+
 type EduAgentKey = 'intent' | 'quizplanner' | 'architect' | 'examiner' | 'solver' | 'judge' | 'student' | 'reviewer' | 'visualcurator' | 'artist'
 const EDU_AGENTS: { key: EduAgentKey; label: string; desc: string; env: string; fallback: string }[] = [
   { key: 'intent', label: 'Intent', desc: 'Đọc yêu cầu, xác định ý định và thông tin còn thiếu', env: 'HERMES_INTENT_MODEL', fallback: 'cx/gpt-5.5' },
@@ -35,8 +54,6 @@ const EDU_AGENTS: { key: EduAgentKey; label: string; desc: string; env: string; 
   { key: 'visualcurator', label: 'VisualCurator', desc: 'Quyết định khi nào cần hình, loại hình phù hợp', env: 'HERMES_VISUAL_MODEL', fallback: 'gc/gemini-2.5-flash' },
   { key: 'artist', label: 'Artist', desc: 'Vẽ TikZ/hình minh hoạ và tự sửa lỗi vẽ', env: 'HERMES_ARTIST_MODEL', fallback: 'gc/gemini-2.5-flash' },
 ]
-
-const SUBJECTS = ['toán', 'tiếng việt', 'khoa học', 'tiếng anh']
 
 const MODULE_SKILLS: Record<ModuleKey, { key: string; label: string; desc: string; patch: Partial<ModuleConfig> }[]> = {
   topic: [
@@ -131,6 +148,7 @@ type ModuleConfig = {
   // button chức năng theo module
   difficulty?: 'easy' | 'medium' | 'hard' | 'mixed'
   questionTypes?: string[]
+  englishSkill?: string  // [Nghe]/[Đọc]/[Ngữ pháp]/[Viết]/[Từ vựng] for Tiếng Anh
   // quyền truy cập & định nghĩa module (Đợt 2)
   access?: 'public' | 'restricted' | 'private'
   definition?: string
@@ -200,6 +218,27 @@ const AGENT_FLOWS: Record<string, string[]> = {
   test: ['Intent', 'Examiner', 'Judge', 'Reviewer', 'Word'],
   solve: ['Read', 'Solver', 'Judge', 'Reviewer', 'Word'],
   review: ['Read', 'Reviewer', 'Judge', 'Word'],
+}
+const AGENT_DISPLAY_FLOWS: Record<string, string[]> = {
+  topic: ['Intent', 'Architect', 'Judge', 'Word'],
+  quiz: ['Intent', 'Architect', 'QuizPlanner', 'Examiner', 'Judge', 'Word'],
+  test: ['Intent', 'Examiner', 'Judge', 'Word'],
+  solve: ['Read', 'Solver', 'Judge', 'Word'],
+  review: ['Read', 'Reviewer', 'Judge', 'Word'],
+}
+function compactFlowAgent(module: ModuleKey, current?: string): string {
+  if (!current) return ''
+  if (module === 'quiz') {
+    if (current === 'Source/NotebookLM') return 'Architect'
+    if (current === 'Artist') return 'Examiner'
+    if (current === 'Reviewer') return 'Judge'
+  }
+  if (module === 'topic') {
+    if (['Source/NotebookLM', 'VisualCurator', 'Artist', 'Student', 'Reviewer'].includes(current)) return current === 'Reviewer' ? 'Judge' : 'Architect'
+  }
+  if (module === 'test' && current === 'Reviewer') return 'Judge'
+  if (module === 'solve' && current === 'Reviewer') return 'Judge'
+  return current
 }
 const AGENT_HINTS: [RegExp, string][] = [
   [/intent|đọc hiểu|phân tích yêu cầu/i, 'Intent'],
@@ -410,8 +449,9 @@ function renderText(text: string) {
 }
 
 function AgentFlow({ current, status, module }: { current?: string; status: RunStatus; module: ModuleKey }) {
-  const flow = AGENT_FLOWS[module] || AGENT_FLOWS.topic
-  const curIdx = current ? flow.indexOf(current) : -1
+  const flow = AGENT_DISPLAY_FLOWS[module] || AGENT_DISPLAY_FLOWS.topic
+  const compactCurrent = compactFlowAgent(module, current)
+  const curIdx = compactCurrent ? flow.indexOf(compactCurrent) : -1
   return (
     <div className="agent-flow">
       {flow.map((a, i) => {
@@ -654,7 +694,8 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
         await setModuleField('selectedNotebookIds', Array.from(new Set([...(cfg?.selectedNotebookIds || []), ...linkedNotebookIds])) as any)
         if (!cfg?.activeNotebookId) await setModuleField('activeNotebookId', merged[0] as any)
       }
-      const task = visibleRequest || t
+      const engCtx = (cfg?.subject === 'tiếng anh' && cfg?.englishSkill) ? `${cfg.englishSkill} ` : ''
+      const task = engCtx + (visibleRequest || t)
       const jobId = uid()
       const history = msgs.slice(-10).flatMap(m => {
         if (m.role === 'user') return [{ role: 'user', content: m.text }]
@@ -798,7 +839,20 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
           <div>
             <div className="eyebrow">Module workspace</div>
             <h2>{mod.label}</h2>
-            <div className="sub">{mod.desc} · {cfg?.subject || 'toán'} · lớp {cfg?.grade || '5'} · {MODE_OPTIONS.find(x => x.key === (cfg?.mode || 'detail'))?.label}</div>
+            <div className="module-hero-selects">
+              <select className="inline-select hero-select" value={cfg?.subject || 'toán'} onChange={e => setModuleField('subject', e.target.value as any)}>
+                {SUBJECTS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+              <select className="inline-select hero-select" value={cfg?.grade || '5'} onChange={e => setModuleField('grade', e.target.value as any)}>
+                {[1,2,3,4,5].map(g => <option key={g} value={String(g)}>Lớp {g}</option>)}
+              </select>
+              {(cfg?.subject || 'toán') === 'tiếng anh' && (
+                <select className="inline-select hero-select eng-skill" value={cfg?.englishSkill || ''} onChange={e => setModuleField('englishSkill', e.target.value as any)}>
+                  {ENGLISH_SKILLS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+              )}
+              <span className="hero-mode-tag">{MODE_OPTIONS.find(x => x.key === (cfg?.mode || 'detail'))?.label}</span>
+            </div>
             {sessionMeta && <div className="sub">Phiên hiện tại: ctx {sessionMeta.contextChars}/{sessionMeta.contextLimit} · {sessionMeta.contextPct}% · {sessionMeta.count} tin</div>}
           </div>
         </div>
@@ -1093,7 +1147,7 @@ function ModuleSettingsModal({ module, cfg, setModuleField, models, notebooks, n
   onClose: () => void
 }) {
   const mod = moduleOf(module)
-  const subjects = Array.from(new Set([...SUBJECTS, ...(cfg.customSubjects || []), cfg.subject || 'toán']))
+  const subjects = Array.from(new Set([...SUBJECTS.map(s => typeof s === 'string' ? s : s.key), ...(cfg.customSubjects || []), cfg.subject || 'toán']))
   const [newSubject, setNewSubject] = useState('')
   const [notebookLink, setNotebookLink] = useState('')
   const [url, setUrl] = useState('')
@@ -1308,9 +1362,9 @@ function agentTerminalLines(msg: Extract<Msg, { role: 'agent' }>): string[] {
   }).filter(Boolean)
 }
 // Thanh process ngang: hiển thị chuỗi sub-agent, tô sáng agent đang chạy.
-function AgentProgressBar({ steps, status, flow }: { steps: AgentStep[]; status: RunStatus; flow: string[] }) {
-  const cur = status === 'done' ? flow[flow.length - 1] : currentAgentFromSteps(steps)
-  const curIdx = flow.indexOf(cur)
+function AgentProgressBar({ steps, status, flow, module }: { steps: AgentStep[]; status: RunStatus; flow: string[]; module: ModuleKey }) {
+  const compactCurrent = compactFlowAgent(module, status === 'done' ? flow[flow.length - 1] : currentAgentFromSteps(steps))
+  const curIdx = flow.indexOf(compactCurrent)
   return (
     <div className="proc-bar">
       {flow.map((a, i) => {
@@ -1346,7 +1400,7 @@ function MsgView({ msg, onRun, sessionMemory }: { msg: Msg; onRun: (t: string) =
           </div>
           {(modelInfo.requested || modelInfo.responded || modelInfo.fallback) && <div className="agent-model-strip">{modelInfo.requested ? `Yêu cầu: ${modelInfo.requested}` : ''}{modelInfo.responded ? ` · Phản hồi: ${modelInfo.responded}` : ''}{modelInfo.fallback ? ` · Fallback: ${modelInfo.fallback}` : ''}</div>}
           {sessionMemory?.summary && <div className="agent-session-strip">Nhớ phiên: {sessionMemory.summary.slice(0, 220)}{sessionMemory.summary.length > 220 ? '…' : ''}</div>}
-          <AgentProgressBar steps={msg.steps} status={msg.status} flow={flow} />
+          <AgentProgressBar steps={msg.steps} status={msg.status} flow={AGENT_DISPLAY_FLOWS[msg.module] || AGENT_DISPLAY_FLOWS.topic} module={msg.module} />
           <pre className="run-log agent-inline-log">{agentTerminalLines(msg).slice(-160).join('\n')}</pre>
           {msg.status === 'error' && (() => { const err = msg.steps.filter(s => s.type === 'error') as Extract<AgentStep, { type: 'error' }>[]; return <div className="proc-err">{err.length ? err[err.length - 1].message : 'Có lỗi khi chạy.'} <button className="btn ghost mini" onClick={() => onRun(msg.task)}><RefreshCw size={13} /> Thử lại</button></div> })()}
           {msg.finalText && msg.status !== 'error' && <div className="agent-final"><div className="agent-final-title">Kết luận</div>{renderText(msg.finalText)}</div>}
@@ -1539,7 +1593,7 @@ function QueueView({ items, setMsgs, module }: { items: QueueItem[]; setMsgs: Re
                 <button className="btn ghost mini" onClick={() => removeJob(job)}>Xóa khỏi queue</button>
               </div>
             </div>
-            {job.role === 'agent' ? <AgentProgressBar steps={job.steps} status={job.status} flow={AGENT_FLOWS[job.module] || AGENT_FLOWS.topic} /> : <AgentFlow current={job.agent} status={job.status} module={job.module} />}
+            {job.role === 'agent' ? <AgentProgressBar steps={job.steps} status={job.status} flow={AGENT_DISPLAY_FLOWS[job.module] || AGENT_DISPLAY_FLOWS.topic} module={job.module} /> : <AgentFlow current={job.agent} status={job.status} module={job.module} />}
             {logOf(job).length > 0 && <pre className="run-log">{logOf(job).slice(-120).join('\n')}</pre>}
           </div>
         ))}
@@ -1563,7 +1617,9 @@ function Files({ module, settings, queue }: { module: ModuleKey; settings: Setti
     const root = settings?.outputDir || ''
     if (!root) return
     await fetch(`/api/files?root=${encodeURIComponent(root)}&rel=${encodeURIComponent(rel)}`, { method: 'DELETE' }).catch(() => null)
-    setLocalFiles(x => x.filter(f => f.rel !== rel))
+    // Xoá toàn bộ file cùng thư mục cha (vì DELETE giờ xoá cả folder)
+    const dir = rel.includes('/') ? rel.substring(0, rel.lastIndexOf('/')) : ''
+    setLocalFiles(x => dir ? x.filter(f => !f.rel.startsWith(dir + '/')) : x.filter(f => f.rel !== rel))
   }
   return (
     <>
@@ -1667,6 +1723,7 @@ function SkillsView({ module }: { module: ModuleKey }) {
 
 function AgentView({ module, settings, setSettings }: { module: ModuleKey; settings: SettingsShape | null; setSettings: (s: SettingsShape) => void }) {
   const [models, setModels] = useState<string[]>([])
+  const [saved, setSaved] = useState(false)
   const cfg = settings?.modules?.[module]
   useEffect(() => { const router = settings?.routerBaseUrl ? `?router=${encodeURIComponent(settings.routerBaseUrl)}` : ''; fetch('/api/models' + router).then(r => r.json()).then(d => { if (d.ok) setModels(d.models || []) }).catch(() => {}) }, [settings?.routerBaseUrl])
   if (!settings || !cfg) return <><div className="topbar"><h2>Agent</h2></div><div className="content">Đang tải…</div></>
@@ -1679,8 +1736,9 @@ function AgentView({ module, settings, setSettings }: { module: ModuleKey; setti
   }
   function setAgentModel(agent: EduAgentKey, model: string) {
     setModuleField('agentModels', { ...(currentCfg.agentModels || {}), [agent]: model } as any)
+    setSaved(true); setTimeout(() => setSaved(false), 1500)
   }
-  return <><div className="topbar"><div><h2>Kientre Agents</h2><div className="sub">Set model cho từng sub-agent thật trong engine, không phải module.</div></div></div><div className="content"><div className="agent-model-list">{EDU_AGENTS.map(a => <div key={a.key} className="agent-model-row"><div className="agent-model-main"><div className="agent-model-title"><Bot size={15}/>{a.label}<span className="lib-kind">{a.env}</span></div><div className="agent-model-desc">{a.desc}</div></div><div className="field agent-model-select"><label>Model</label><select value={currentCfg.agentModels?.[a.key] || a.fallback} onChange={e => setAgentModel(a.key, e.target.value)}>{!models.includes(currentCfg.agentModels?.[a.key] || a.fallback) && <option value={currentCfg.agentModels?.[a.key] || a.fallback}>{currentCfg.agentModels?.[a.key] || a.fallback}</option>}{models.map(m => <option key={m} value={m}>{m}</option>)}</select></div></div>)}</div><div className="card compact-note"><h3><SlidersHorizontal size={16}/> Ghi chú</h3><p className="desc">Các model này được truyền vào engine bằng env khi chạy job. Ví dụ Student dùng <code>HERMES_STUDENT_MODEL</code>, Judge dùng <code>HERMES_JUDGE_MODEL</code>, Reviewer dùng <code>HERMES_REVIEWER_MODEL</code>.</p></div></div></>
+  return <><div className="topbar"><div><h2>Kientre Agents</h2><div className="sub">Set model cho từng sub-agent thật trong engine, không phải module. {saved && <span className="saved-flash">✓ Đã lưu</span>}</div></div></div><div className="content"><div className="agent-model-list">{EDU_AGENTS.map(a => <div key={a.key} className="agent-model-row"><div className="agent-model-main"><div className="agent-model-title"><Bot size={15}/>{a.label}<span className="lib-kind">{a.env}</span></div><div className="agent-model-desc">{a.desc}</div></div><div className="field agent-model-select"><label>Model</label><select value={currentCfg.agentModels?.[a.key] || a.fallback} onChange={e => setAgentModel(a.key, e.target.value)}>{!models.includes(currentCfg.agentModels?.[a.key] || a.fallback) && <option value={currentCfg.agentModels?.[a.key] || a.fallback}>{currentCfg.agentModels?.[a.key] || a.fallback}</option>}{models.map(m => <option key={m} value={m}>{m}</option>)}</select></div></div>)}</div><div className="card compact-note"><h3><SlidersHorizontal size={16}/> Ghi chú</h3><p className="desc">Mỗi agent đọc env riêng, sau đó fallback về model module nếu chưa set. Thay đổi lưu ngay.</p></div></div></>
 }
 
 function Dashboard({ settings, queue }: { settings: SettingsShape | null; queue: Extract<Msg, { role: 'run' }>[] }) {

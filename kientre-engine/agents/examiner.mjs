@@ -2,7 +2,7 @@ import { chatJSON } from '../server/llm.mjs'
 import { searchWeb } from '../server/websearch.mjs'
 
 /** Ra ĐỀ THI: trắc nghiệm + điền đáp án + tự luận (điểm từng ý). */
-export async function generateExam(o, model = process.env.HERMES_EXAMINER_MODEL || 'gc/gemini-2.5-flash') {
+export async function generateExam(o, model = process.env.HERMES_EXAMINER_MODEL || process.env.HERMES_WORKER_MODEL || 'gc/gemini-2.5-flash') {
  const { grade, subject, topic, mc = 0, fill = 0, essay = 0, essayPoints = 6, special, reference } = o
  const sp = special ? `\nYÊU CẦU ĐẶC BIỆT (bắt buộc): ${special}` : ''
  const ref = reference ? `\nNGUỒN THAM KHẢO (ưu tiên bám theo đề/tài liệu thật):\n"""${String(reference).slice(0, 3800)}"""` : ''
@@ -31,7 +31,7 @@ function gradeBoundaryText(grade) {
  return `RANH GIỚI ${grade}: không dùng thuật ngữ/phương pháp vượt chương trình ${grade}.`
 }
 
-export async function generateQuizQuestion(o, model = process.env.HERMES_EXAMINER_MODEL || 'gc/gemini-2.5-flash') {
+export async function generateQuizQuestion(o, model = process.env.HERMES_EXAMINER_MODEL || process.env.HERMES_WORKER_MODEL || 'gc/gemini-2.5-flash') {
  const { grade, subject, topic, globalContext = '', quiz = {}, question = {}, reference = '', allowWebSearch = false } = o
  const boundary = gradeBoundaryText(grade)
  const webQuery = `${topic} ${grade} ${subject} ${question.type || ''} ${question.note || ''}`.trim()
@@ -61,11 +61,20 @@ Không được tự chọn câu khác. Phải triển khai đúng dòng khung.m
 Câu hỏi phải khó hơn mức cơ bản, có bẫy hợp lệ theo note/độ khó QuizPlanner giao. Ưu tiên bẫy: dữ kiện thừa, phương án nhiễu rất gần đúng, nhầm đơn vị, nhầm thứ tự phép tính, nhầm điều kiện, nhầm khái niệm, nhầm đọc hình. Bẫy phải công bằng, không mơ hồ.
 Nếu là Toán Lớp 5: tuyệt đối không dùng phép chia phân số, phân số đảo ngược, BCNN, bội chung nhỏ nhất, mẫu số chung nhỏ nhất. Nếu khung gợi ý vượt lớp, hãy thay bằng dạng cùng mục tiêu nhưng chỉ dùng cộng/trừ/nhân phân số hoặc mẫu số chung.
 Nếu là Khoa học Lớp 5: dùng ngôn ngữ quan sát đời sống, không dùng thuật ngữ vượt mức như điện trở/hiệu điện thế/công suất. Ví dụ khí phải rõ, tránh "hơi nước" mơ hồ; dùng "không khí trong bóng bay" hoặc nêu "hơi nước không nhìn thấy".
+Với ảnh minh họa Toán hình học tiểu học: nếu câu cần phân biệt các khối/hình (ví dụ hình lập phương, hình hộp chữ nhật, hình trụ), mô tả visual phải là hình vẽ cấu trúc có nhãn Hình 1, Hình 2, Hình 3; không mô tả ảnh chụp vật thật kiểu khay đá/đồ vật đời sống.
+Với ảnh minh họa Khoa học lớp 5: ưu tiên sơ đồ, bảng phân loại, hình vẽ quá trình/trạng thái rõ nghĩa; tránh ảnh trang trí hoặc ảnh đời sống dễ hiểu sai khái niệm khoa học.
 Nếu câu yêu cầu điền bảng/phân loại/danh sách, đề bài phải tự chứa đầy đủ bảng hoặc danh sách đối tượng; không được chỉ nhắc "bảng dưới đây" nếu không xuất bảng. Với bay hơi/sôi: nói nước nhận nhiệt, nóng lên; nước có thể bay hơi ở mặt thoáng ở nhiều nhiệt độ; khi sôi thì hóa hơi mạnh trong toàn bộ khối nước. Không nói "hơi nước nhẹ hơn không khí nên bay lên cao".
 Với đốt/cháy ở Khoa học Lớp 5: hỏi theo quan sát an toàn, đáp án chấp nhận phải rõ (ví dụ tro và khói/khí); tránh bắt học sinh nêu khí không nhìn thấy nếu đề không cung cấp dữ kiện. Biểu điểm phải nêu các đáp án chấp nhận được.
 Tránh dạng điền đáp án tạo câu sai ngữ pháp sau khi điền. Nếu đáp án là cụm có chữ "năng lượng", câu hỏi không được có thêm chữ "năng lượng" ngay sau chỗ trống.
 Nếu là Tiếng Việt Lớp 5: tránh dùng ví dụ gây tranh cãi về từ ghép/từ láy/từ nhiều nghĩa; nếu câu hỏi về từ loại/nghĩa từ, chỉ dùng ví dụ rất rõ, tự nhiên, không gượng ép. Không dùng đáp án phụ thuộc phân tích học thuật mơ hồ.
-Nếu là Tiếng Anh Lớp 5: không dùng loại câu "Nối", "Sắp xếp từ", "Tìm và sửa lỗi" theo kiểu đáp án A/B/C/D trừ khi đề hiển thị đầy đủ các phương án hoặc danh sách từ. Với điền từ, đáp án phải là chính chuỗi cần điền; với sửa lỗi, đề phải chứa câu sai và học sinh viết lại câu đúng trực tiếp.
+Nếu là Tiếng Anh Lớp 5: 
+- Với [Nghe] trong note: tạo TRANSCRIPT tiếng Anh ngắn (40-80 từ, đơn giản, phù hợp Lớp 5) trong trường "transcript". Câu hỏi là trắc nghiệm 4 lựa chọn về nội dung transcript. Transcript và câu hỏi cùng một chủ đề; câu hỏi phải trả lời được từ nội dung transcript.
+- Với [Đọc] trong note: tạo đoạn văn ngắn (50-100 từ) trong trường "passage". Câu hỏi trắc nghiệm 4 lựa chọn dựa trên đoạn văn. Đoạn văn phải đơn giản, từ vựng Lớp 5.
+- Với [Ngữ pháp] trong note: tạo câu hỏi về chủ điểm ngữ pháp cụ thể. Trắc nghiệm hoặc điền từ.
+- Với [Từ vựng] trong note: tạo câu hỏi từ vựng theo chủ đề. Trắc nghiệm hoặc điền từ.
+- Với câu không có tag kỹ năng: mặc định là trắc nghiệm ngữ pháp/từ vựng.
+- KHÔNG dùng loại câu "Nối", "Sắp xếp từ", "Tìm và sửa lỗi" kiểu A/B/C/D.
+- Trả thêm trường "transcript" (cho [Nghe]) và "passage" (cho [Đọc]) trong JSON output.
 Nếu là Lịch sử và Địa lý Lớp 5: nếu không có bản đồ/hình thật thì không được viết "quan sát bản đồ/hình bên dưới". Đổi sang câu chữ mô tả đủ dữ kiện. Tránh nêu số liệu hoặc phân loại dễ lệch SGK nếu không thật sự cần.
 Trả về: question, options, answer, hints, solution, visual.
 BẮT BUỘC: đúng 3 gợi ý (hints) theo hướng dẫn từng bước. Mỗi hint tự nhiên như "Gợi ý 1: ...", "Gợi ý 2: ...", "Gợi ý 3: ..." (không viết đáp án trong gợi ý). Tự luận phải có lời giải chi tiết và điểm từng ý.

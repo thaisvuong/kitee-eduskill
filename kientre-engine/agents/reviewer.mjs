@@ -24,7 +24,7 @@ function normalizeReview(res = {}) {
  * Nguyên tắc: mọi lỗi kiến thức, vượt cấp, đề/đáp án sai, hình minh họa gây hiểu nhầm,
  * hoặc trình bày có thể làm học sinh hiểu sai đều là blocking issue, không cho qua.
  */
-export async function reviewDocument(text, grade, subject = 'Toán', model = process.env.HERMES_REVIEWER_MODEL || 'cx/gpt-5.5') {
+export async function reviewDocument(text, grade, subject = 'Toán', model = process.env.HERMES_REVIEWER_MODEL || process.env.HERMES_WORKER_MODEL || 'cx/gpt-5.5') {
  const system = `Bạn là Reviewer kiểm định chất lượng tài liệu giáo dục cho học sinh.
 Bạn cực kỳ nghiêm khắc: KHÔNG cho bất kỳ sai phạm nào vượt qua.
 Nếu có lỗi kiến thức, sai đáp án, vượt chương trình khối lớp, đề mơ hồ, thiếu dữ kiện, hình minh họa sai/gây hiểu nhầm, hoặc trình bày khiến học sinh có thể hiểu sai, verdict phải là FAIL.

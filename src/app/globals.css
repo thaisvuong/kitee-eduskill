@@ -1218,3 +1218,71 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .job-row { grid-template-columns: 1fr; }
   .agent-model-row { grid-template-columns: 1fr; }
 }
+
+/* ---- Topic Quick-Pick (composer) ---- */
+.topic-quick-pick {
+  padding: 0 12px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.topic-chips {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.topic-chip-group { position: relative; }
+.topic-chip {
+  padding: 3px 10px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--fg); font-size: 12px; cursor: pointer;
+  white-space: nowrap; transition: all .15s;
+}
+.topic-chip:hover, .topic-chip.active {
+  background: var(--accent-light); border-color: var(--accent);
+}
+.topic-sub-chips {
+  position: absolute; top: 100%; left: 0; z-index: 20;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 4px; min-width: 200px; box-shadow: 0 4px 12px rgba(0,0,0,.1);
+  display: flex; flex-wrap: wrap; gap: 3px;
+}
+.topic-sub-chip {
+  padding: 3px 8px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg); font-size: 11px; cursor: pointer; white-space: nowrap;
+}
+.topic-sub-chip:hover { background: var(--accent-light); border-color: var(--accent); }
+
+/* ---- Module hero selects ---- */
+.module-hero-selects {
+  display: flex; align-items: center; gap: 6px; margin-top: 2px;
+}
+.hero-select {
+  padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border);
+  font-size: 13px; background: var(--bg); color: var(--fg);
+  font-family: inherit;
+}
+.hero-mode-tag {
+  font-size: 11px; color: var(--fg-muted); background: var(--bg-muted);
+  padding: 2px 8px; border-radius: 4px;
+}
+
+/* ---- Selected topic (composer) ---- */
+.selected-topic-bar {
+  padding: 0 12px 4px;
+}
+.selected-topic-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 10px; border-radius: 12px;
+  background: var(--accent-light); color: var(--accent);
+  font-size: 12px; font-weight: 500;
+}
+.topic-clear {
+  background: none; border: none; cursor: pointer; font-size: 11px;
+  color: var(--fg-muted); padding: 0 2px;
+}
+.topic-clear:hover { color: var(--fg); }
+
+/* Topic chip selected state */
+.topic-chip.selected, .topic-sub-chip.selected {
+  background: var(--accent) !important; color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
+/* English skill dropdown */
+.eng-skill { border-color: var(--accent) !important; }

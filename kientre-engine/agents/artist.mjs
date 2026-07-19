@@ -69,7 +69,7 @@ function plainLabel(s) {
 }
 
 /** Sinh mã TikZ cho một mô tả hình. */
-export async function runArtist(figureDesc, model = process.env.HERMES_ARTIST_MODEL || 'gc/gemini-2.5-flash', prev = null) {
+export async function runArtist(figureDesc, model = process.env.HERMES_ARTIST_MODEL || process.env.HERMES_WORKER_MODEL || 'gc/gemini-2.5-flash', prev = null) {
  return chatJSON({ model, system: SYSTEM, user: buildPrompt(plainLabel(figureDesc), prev) })
 }
 

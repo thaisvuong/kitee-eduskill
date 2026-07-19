@@ -7,6 +7,6 @@ export async function runJudge(chunkContent, boundaries, grade) {
  Kiểm tra: Sai kiến thức? Vượt lớp? Không thực tế?
  Trả về JSON: {"status": "PASS" | "FAIL", "reason": string}`
  // Judge chạy trên model qua 9Router (Hermes) — KHÔNG cần Claude để tự kiểm.
- const model = process.env.HERMES_JUDGE_MODEL || 'cx/gpt-5.5'
+ const model = process.env.HERMES_JUDGE_MODEL || process.env.HERMES_WORKER_MODEL || 'cx/gpt-5.5'
  return chatJSON({ model, system, user: prompt })
 }

@@ -168,6 +168,12 @@ export async function DELETE(req: Request) {
  if (!rel) return NextResponse.json({ ok: false, error: 'Thiếu rel' }, { status: 400 })
  const full = await resolveRequestedFile(outputDir, rel)
  if (!full) return NextResponse.json({ ok: false, error: 'Không tìm thấy file' }, { status: 404 })
- await fs.unlink(full).catch(() => null)
+ // Xoá toàn bộ thư mục chứa file (mỗi quiz/topic nằm trong thư mục riêng)
+ const parentDir = path.dirname(full)
+ if (parentDir !== outputDir && parentDir.startsWith(outputDir)) {
+   await fs.rm(parentDir, { recursive: true, force: true }).catch(() => null)
+ } else {
+   await fs.unlink(full).catch(() => null)
+ }
  return NextResponse.json({ ok: true, rel })
 }
