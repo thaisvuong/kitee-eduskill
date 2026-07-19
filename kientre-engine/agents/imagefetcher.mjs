@@ -129,11 +129,75 @@ async function from9RouterImage(prompt, dest) {
  } catch { return false }
 }
 
-/** Tải ảnh minh họa thật: ảnh nằm trên trang nguồn → Openverse/Wikimedia → generated only if enabled. */
+async function fromPixabay(query, words, dest) {
+ try {
+  const key = process.env.PIXABAY_API_KEY || ''
+  if (!key) return false
+  const api = `https://pixabay.com/api/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&per_page=12&safesearch=true&image_type=photo&orientation=horizontal`
+  const r = await fetch(api, { headers: UA, signal: AbortSignal.timeout(12000) })
+  if (!r.ok) return false
+  const j = await r.json()
+  const ranked = (j.hits || [])
+   .map(h => ({ h, sc: scoreTitle(`${h.tags || ''}`, words) + (h.likes > 10 ? 1 : 0) + (h.webformatWidth > h.webformatHeight ? 1 : 0) }))
+   .sort((a, b) => b.sc - a.sc)
+  for (const { h, sc } of ranked) {
+   if (sc < 2 || !looksRelevant(`${h.tags || ''} ${h.user || ''}`, words)) continue
+   const url = h.largeImageURL || h.webformatURL
+   if (url && await download(url, dest, h.tags || '', { query, source: 'pixabay', score: sc, pageUrl: h.pageURL })) return true
+  }
+ } catch { /* fallthrough */ }
+ return false
+}
+
+async function fromPexels(query, words, dest) {
+ try {
+  const key = process.env.PEXELS_API_KEY || ''
+  if (!key) return false
+  const api = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=10&orientation=landscape&size=medium`
+  const r = await fetch(api, { headers: { ...UA, Authorization: key }, signal: AbortSignal.timeout(12000) })
+  if (!r.ok) return false
+  const j = await r.json()
+  const ranked = (j.photos || [])
+   .map(p => ({ p, sc: scoreTitle(`${p.alt || ''} ${p.photographer || ''}`, words) + (p.width > p.height ? 1 : 0) }))
+   .sort((a, b) => b.sc - a.sc)
+  for (const { p, sc } of ranked) {
+   if (sc < 2 || !looksRelevant(`${p.alt || ''} ${p.photographer || ''} ${p.url || ''}`, words)) continue
+   const url = p.src?.large || p.src?.original || p.src?.medium
+   if (url && await download(url, dest, p.alt || '', { query, source: 'pexels', score: sc, pageUrl: p.url })) return true
+  }
+ } catch { /* fallthrough */ }
+ return false
+}
+
+async function fromGoogleImages(query, words, dest) {
+ try {
+  const key = process.env.GOOGLE_API_KEY || ''
+  const cx = process.env.GOOGLE_CSE_ID || ''
+  if (!key || !cx) return false
+  const api = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(key)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&searchType=image&num=8&safe=active&imgSize=medium`
+  const r = await fetch(api, { headers: UA, signal: AbortSignal.timeout(12000) })
+  if (!r.ok) return false
+  const j = await r.json()
+  const ranked = (j.items || [])
+   .map(it => ({ it, sc: scoreTitle(`${it.title || ''} ${it.snippet || ''}`, words) }))
+   .sort((a, b) => b.sc - a.sc)
+  for (const { it, sc } of ranked) {
+   if (sc < 2 || !looksRelevant(`${it.title || ''} ${it.snippet || ''}`, words)) continue
+   const url = it.link
+   if (url && await download(url, dest, it.title || '', { query, source: 'google-images', score: sc, pageUrl: it.image?.contextLink })) return true
+  }
+ } catch { /* fallthrough */ }
+ return false
+}
+
+/** Tải ảnh minh họa thật: Google → Pexels → ảnh nguồn web → Openverse/Wikimedia → generated. */
 export async function fetchImage(query, dest) {
  const words = String(query).toLowerCase().split(/[^a-zà-ỹ0-9]+/).filter(Boolean)
  const short = words.slice(0, 7).join(' ')
  const quoted = short ? `"${short}"` : query
+ if (await fromGoogleImages(query, words, dest)) return true
+ if (await fromPixabay(short || query, words, dest)) return true
+ if (await fromPexels(short || query, words, dest)) return true
  if (await fromExplicitUrls(query, words, dest)) return true
  if (await fromWebSearchImages(query, words, dest)) return true
  if (await fromOpenverse(quoted, words, dest)) return true

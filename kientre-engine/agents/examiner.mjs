@@ -68,15 +68,12 @@ Với đốt/cháy ở Khoa học Lớp 5: hỏi theo quan sát an toàn, đáp 
 Tránh dạng điền đáp án tạo câu sai ngữ pháp sau khi điền. Nếu đáp án là cụm có chữ "năng lượng", câu hỏi không được có thêm chữ "năng lượng" ngay sau chỗ trống.
 Nếu là Tiếng Việt Lớp 5: tránh dùng ví dụ gây tranh cãi về từ ghép/từ láy/từ nhiều nghĩa; nếu câu hỏi về từ loại/nghĩa từ, chỉ dùng ví dụ rất rõ, tự nhiên, không gượng ép. Không dùng đáp án phụ thuộc phân tích học thuật mơ hồ.
 Nếu là Tiếng Anh Lớp 5: 
-- Với [Nghe] trong note: tạo TRANSCRIPT tiếng Anh ngắn (40-80 từ, đơn giản, phù hợp Lớp 5) trong trường "transcript". Câu hỏi là trắc nghiệm 4 lựa chọn về nội dung transcript. Transcript và câu hỏi cùng một chủ đề; câu hỏi phải trả lời được từ nội dung transcript.
-- Với [Đọc] trong note: tạo đoạn văn ngắn (50-100 từ) trong trường "passage". Câu hỏi trắc nghiệm 4 lựa chọn dựa trên đoạn văn. Đoạn văn phải đơn giản, từ vựng Lớp 5.
-- Với [Ngữ pháp] trong note: tạo câu hỏi về chủ điểm ngữ pháp cụ thể. Trắc nghiệm hoặc điền từ.
-- Với [Từ vựng] trong note: tạo câu hỏi từ vựng theo chủ đề. Trắc nghiệm hoặc điền từ.
-- Với câu không có tag kỹ năng: mặc định là trắc nghiệm ngữ pháp/từ vựng.
-- KHÔNG dùng loại câu "Nối", "Sắp xếp từ", "Tìm và sửa lỗi" kiểu A/B/C/D.
-- Trả thêm trường "transcript" (cho [Nghe]) và "passage" (cho [Đọc]) trong JSON output.
+- Nếu note chứa [Nghe]: ĐÂY LÀ BÀI NGHE TIẾNG ANH. TUYỆT ĐỐI KHÔNG tạo câu yêu cầu đọc (không "Read the passage", không "Look at the picture"). MỖI CÂU PHẢI CÓ TRANSCRIPT riêng — một đoạn hội thoại/độc thoại tiếng Anh ngắn (40-80 từ, đơn giản, Lớp 5). Transcript đặt trong trường "transcript". TOÀN BỘ câu hỏi, options (A/B/C/D), và đề bài PHẢI viết bằng TIẾNG ANH — không dùng tiếng Việt trong câu hỏi hay đáp án. Nhiệm vụ tạo audio là của giáo viên — bạn chỉ cần cung cấp transcript tiếng Anh.
+- Nếu note chứa [Đọc]: tạo đoạn văn ngắn (50-100 từ) trong trường "passage". Câu hỏi trắc nghiệm 4 lựa chọn dựa trên đoạn văn.
+- Nếu note chứa [Ngữ pháp] hoặc [Từ vựng]: tạo câu trắc nghiệm hoặc điền từ.
+- Nếu note chứa [Viết]: tạo câu sắp xếp từ hoặc viết câu.
 Nếu là Lịch sử và Địa lý Lớp 5: nếu không có bản đồ/hình thật thì không được viết "quan sát bản đồ/hình bên dưới". Đổi sang câu chữ mô tả đủ dữ kiện. Tránh nêu số liệu hoặc phân loại dễ lệch SGK nếu không thật sự cần.
-Trả về: question, options, answer, hints, solution, visual.
+Trả về: question, options, answer, hints, solution, visual, transcript (nếu [Nghe]), passage (nếu [Đọc]).
 BẮT BUỘC: đúng 3 gợi ý (hints) theo hướng dẫn từng bước. Mỗi hint tự nhiên như "Gợi ý 1: ...", "Gợi ý 2: ...", "Gợi ý 3: ..." (không viết đáp án trong gợi ý). Tự luận phải có lời giải chi tiết và điểm từng ý.
 Định dạng theo loại câu:
 - Trắc nghiệm: options phải có đúng 4 phương án A/B/C/D; answer là chữ cái đúng hoặc nội dung đúng.

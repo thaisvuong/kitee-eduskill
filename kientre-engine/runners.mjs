@@ -251,8 +251,8 @@ function quizQuestionBlocks(q, detail) {
      solutionText = solutionText.replace(m[0], '').trim()
    }
  }
- if (extractedTranscript) blocks.push({ type: 'note', title: '🎧 Transcript (Nghe)', text: extractedTranscript, quizQuestion: meta })
- if (extractedPassage) blocks.push({ type: 'note', title: '📖 Đoạn văn (Đọc)', text: extractedPassage, quizQuestion: meta })
+ if (extractedTranscript) blocks.push({ type: 'note', title: 'Transcript (Nghe)', text: extractedTranscript, quizQuestion: meta })
+ if (extractedPassage) blocks.push({ type: 'note', title: 'Đoạn văn (Đọc)', text: extractedPassage, quizQuestion: meta })
  const visualText = detail.visual && !detail.imagePath ? `Mô tả hình: ${detail.visual}` : ''
  const questionText = detail.visual && !detail.imagePath ? clean(detail.question).replace(/hình\s+(vẽ\s+)?(dưới đây|sau đây)/gi, 'mô tả sau') : clean(detail.question)
  const renderedAnswer = isMatch || isOrdering || isFixing ? '' : clean(detail.answer)
@@ -301,7 +301,7 @@ function normalizeQuestionPlan(question, subject) {
   const noteLower = note.toLowerCase()
   if (note.includes('[nghe]') || noteLower.includes('listening')) {
    out.type = 'trắc nghiệm'
-   push('Dạng Nghe: tạo transcript + câu hỏi trắc nghiệm 4 lựa chọn dựa trên transcript. Transcript trong trường transcript.')
+   push('Dạng Nghe: MỖI CÂU có transcript riêng. Chỉ tạo transcript + câu hỏi trắc nghiệm. KHÔNG tạo câu đọc hiểu, ngữ pháp, hay yêu cầu xem hình.')
   } else if (note.includes('[đọc]') || noteLower.includes('reading')) {
    out.type = 'trắc nghiệm'
    push('Dạng Đọc: tạo đoạn văn ngắn + câu hỏi trắc nghiệm 4 lựa chọn. Đoạn văn trong trường passage.')

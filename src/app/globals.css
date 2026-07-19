@@ -1286,3 +1286,41 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* English skill dropdown */
 .eng-skill { border-color: var(--accent) !important; }
+
+/* English skill chips */
+.eng-skill-chips {
+  display: flex; gap: 4px; align-items: center;
+}
+.eng-skill-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--fg); font-size: 12px; cursor: pointer;
+  font-family: inherit; white-space: nowrap; transition: all .15s;
+}
+.eng-skill-chip:hover { background: var(--accent-light); border-color: var(--accent); }
+.eng-skill-chip.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+
+/* IconSelect dropdown */
+.icon-select { position: relative; display: inline-block; }
+.icon-select-trigger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 6px; border: 1px solid var(--accent);
+  background: var(--bg); color: var(--fg); font-size: 13px; cursor: pointer;
+  font-family: inherit; white-space: nowrap;
+}
+.icon-select-trigger:hover { background: var(--accent-light); }
+.icon-select-drop {
+  position: absolute; top: 100%; left: 0; z-index: 50; margin-top: 2px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 4px; min-width: 160px; box-shadow: 0 4px 12px rgba(0,0,0,.12);
+}
+.icon-select-opt {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 10px; border: none; border-radius: 6px;
+  background: transparent; color: var(--fg); font-size: 13px; cursor: pointer;
+  font-family: inherit; text-align: left;
+}
+.icon-select-opt:hover { background: var(--bg-muted); }
+.icon-select-opt.active { background: var(--accent-light); color: var(--accent); }

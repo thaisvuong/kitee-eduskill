@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Bot, Cloud, Download, Eye, FileStack, FileText, KeyRound, LayoutDashboard, MessageSquare,
-  Paperclip, Pencil, Plug, RefreshCw, Save, Send, Settings, Terminal, Trash2, User, X, ArrowLeft,
-  BookOpen, ClipboardList, Wand2, CheckCircle2, Database, Sparkles, SlidersHorizontal, Layers, BookMarked, Link2, NotebookTabs,
-  Cpu, ShieldCheck, Eye as EyeIcon, EyeOff, Shield,
+  Bot, Cloud, Download, FileStack, FileText, KeyRound, LayoutDashboard, MessageSquare,
+  Paperclip, Plug, RefreshCw, Save, Send, Settings, Terminal, Trash2, User, X, ArrowLeft,
+  ClipboardList, Wand2, CheckCircle2, Database, Sparkles, SlidersHorizontal, Layers, BookMarked, Link2, NotebookTabs,
+  Cpu, ShieldCheck, Eye, EyeOff, Shield,
+  Headphones, BookOpen, Pencil, Library, ScrollText, Image,
 } from 'lucide-react'
 import { quickChatReply } from '@/lib/quickChat'
 import { SLASH_COMMANDS, suggestCommands, findCommand, type SlashCommand } from '@/lib/kientreEngine/slashCommands'
@@ -32,13 +33,12 @@ const SUBJECTS = [
   { key: 'địa lý', label: 'Địa lý' },
 ]
 
-const ENGLISH_SKILLS = [
-  { key: '', label: '-- Chọn kỹ năng --' },
-  { key: '[Nghe]', label: '🎧 Nghe (Listening)' },
-  { key: '[Đọc]', label: '📖 Đọc (Reading)' },
-  { key: '[Ngữ pháp]', label: '📝 Ngữ pháp (Grammar)' },
-  { key: '[Viết]', label: '✏️ Viết (Writing)' },
-  { key: '[Từ vựng]', label: '📚 Từ vựng (Vocabulary)' },
+const ENGLISH_SKILLS: { key: string; label: string; icon: any }[] = [
+  { key: '[Nghe]', label: 'Nghe', icon: Headphones },
+  { key: '[Đọc]', label: 'Đọc', icon: BookOpen },
+  { key: '[Ngữ pháp]', label: 'Ngữ pháp', icon: Pencil },
+  { key: '[Viết]', label: 'Viết', icon: ScrollText },
+  { key: '[Từ vựng]', label: 'Từ vựng', icon: Library },
 ]
 
 type EduAgentKey = 'intent' | 'quizplanner' | 'architect' | 'examiner' | 'solver' | 'judge' | 'student' | 'reviewer' | 'visualcurator' | 'artist'
@@ -179,7 +179,7 @@ type JobMsg = Extract<Msg, { role: 'run' }> | Extract<Msg, { role: 'agent' }>
 type QueueItem = JobMsg & { sessionId?: string; sessionTitle?: string }
 type SessionMeta = { id: string; title: string; module: string; count: number; updatedAt: number; contextChars: number; contextLimit: number; contextPct: number }
 type MaskedKey = { present: boolean; hint: string }
-type ProviderKey = 'gemini' | 'deepseek' | 'glm' | 'openrouter'
+type ProviderKey = 'gemini' | 'deepseek' | 'glm' | 'openrouter' | 'pexels' | 'pixabay' | 'google' | 'googleCse'
 type SettingsShape = {
   outputDir: string; workspaceDir: string; engineDir: string; hermesHome: string; googleCredentialFile: string
   routerBaseUrl: string; fallbackModels: string; modelRetries: number; retryDelayMs: number
@@ -467,6 +467,36 @@ function AgentFlow({ current, status, module }: { current?: string; status: RunS
   )
 }
 
+function IconSelect({ value, options, onChange, placeholder }: {
+  value: string; options: { key: string; label: string; icon: any }[]
+  onChange: (key: string) => void; placeholder: string
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = options.find(o => o.key === value)
+  const SelIcon = selected?.icon
+  return (
+    <div className="icon-select" onMouseLeave={() => setOpen(false)}>
+      <button className="icon-select-trigger" onClick={() => setOpen(!open)}>
+        {SelIcon ? <SelIcon size={14} /> : null}
+        <span>{selected?.label || placeholder}</span>
+      </button>
+      {open && (
+        <div className="icon-select-drop">
+          {options.map(o => {
+            const OIcon = o.icon
+            return (
+              <button key={o.key} className={`icon-select-opt ${o.key === value ? 'active' : ''}`}
+                onClick={() => { onChange(o.key); setOpen(false) }}>
+                <OIcon size={14} /> {o.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settings, setSettings, msgs, setMsgs, input, setInput }: {
   module: ModuleKey
   activeSessionId: string
@@ -489,6 +519,10 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
   const [notebookStatus, setNotebookStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [showModuleSettings, setShowModuleSettings] = useState(false)
   const [showNotebookPopup, setShowNotebookPopup] = useState(false)
+  const [showImageGen, setShowImageGen] = useState(false)
+  const [imageGenPrompt, setImageGenPrompt] = useState('')
+  const [imageGenAspect, setImageGenAspect] = useState('square')
+  const [imageGenLoading, setImageGenLoading] = useState(false)
   const [sessionMemory, setSessionMemory] = useState<SessionMemory | null>(null)
   const [driveInput, setDriveInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -759,6 +793,34 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
     void runCommand(jobId, finalCommand)
   }
 
+  async function generateImage() {
+    const prompt = imageGenPrompt.trim()
+    if (!prompt) return
+    setImageGenLoading(true)
+    try {
+      const r = await fetch('/api/image-gen', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt, aspectRatio: imageGenAspect }),
+      })
+      const d = await r.json()
+      if (d.ok && d.image) {
+        setMsgs(m => [...m,
+          { id: uid(), role: 'user', text: `🎨 Tạo ảnh: ${prompt}` },
+          { id: uid(), role: 'bot', text: `![${prompt}](${d.image})\\n\\n*${prompt}* · ${imageGenAspect} · Gemini 3 Pro Image` },
+        ])
+        setShowImageGen(false)
+        setImageGenPrompt('')
+      } else {
+        setMsgs(m => [...m, { id: uid(), role: 'bot', text: `❌ Tạo ảnh thất bại: ${d.error || 'không rõ'}` }])
+      }
+    } catch (e: any) {
+      setMsgs(m => [...m, { id: uid(), role: 'bot', text: `❌ Lỗi kết nối: ${e?.message || 'không rõ'}` }])
+    } finally {
+      setImageGenLoading(false)
+    }
+  }
+
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -847,9 +909,12 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
                 {[1,2,3,4,5].map(g => <option key={g} value={String(g)}>Lớp {g}</option>)}
               </select>
               {(cfg?.subject || 'toán') === 'tiếng anh' && (
-                <select className="inline-select hero-select eng-skill" value={cfg?.englishSkill || ''} onChange={e => setModuleField('englishSkill', e.target.value as any)}>
-                  {ENGLISH_SKILLS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                </select>
+                <IconSelect
+                  value={cfg?.englishSkill || ''}
+                  options={ENGLISH_SKILLS}
+                  onChange={(key) => setModuleField('englishSkill', key as any)}
+                  placeholder="Chọn kỹ năng"
+                />
               )}
               <span className="hero-mode-tag">{MODE_OPTIONS.find(x => x.key === (cfg?.mode || 'detail'))?.label}</span>
             </div>
@@ -942,6 +1007,9 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
             <button className="attach-btn" title="Tải file lên" disabled={uploading} onClick={() => fileRef.current?.click()}>
               {uploading ? <RefreshCw size={18} className="spin" /> : <Paperclip size={18} />}
             </button>
+            <button className="attach-btn" title="Tạo ảnh bằng AI" onClick={() => { setShowImageGen(true); setImageGenPrompt('') }}>
+              <Image size={18} />
+            </button>
             <textarea
               ref={taRef} value={input} rows={1}
               placeholder={`Nhập yêu cầu tự nhiên… VD: ${quickExample()}`}
@@ -954,6 +1022,7 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
       </div>
       {showModuleSettings && cfg && <ModuleSettingsModal module={module} cfg={cfg} setModuleField={setModuleField} models={models} notebooks={notebooks} notebookStatus={notebookStatus} onClose={() => setShowModuleSettings(false)} />}
       {showNotebookPopup && settings && <div className="modal-backdrop" onMouseDown={() => setShowNotebookPopup(false)}><div className="modal notebook-popup" onMouseDown={e => e.stopPropagation()}><div className="modal-head"><div><h3>NotebookLM Brain</h3><div className="modal-path">Nguồn, sổ tay, tạo quiz/artifact</div></div><button className="icon-btn" onClick={() => setShowNotebookPopup(false)}><X size={18}/></button></div><NotebookLMView module={module} settings={settings} setSettings={setSettings} /></div></div>}
+      {showImageGen && <ImageGenModal prompt={imageGenPrompt} aspect={imageGenAspect} loading={imageGenLoading} onPromptChange={setImageGenPrompt} onAspectChange={setImageGenAspect} onGenerate={generateImage} onClose={() => setShowImageGen(false)} />}
     </>
   )
 }
@@ -1780,13 +1849,17 @@ const PROVIDERS: { key: ProviderKey; label: string; hint: string; prefix: string
   { key: 'deepseek', label: 'DeepSeek', hint: 'Gọi thẳng DeepSeek.', prefix: 'deepseek/', examples: 'deepseek/deepseek-chat, deepseek/deepseek-reasoner', placeholder: 'sk-…', docs: 'https://platform.deepseek.com/api_keys' },
   { key: 'glm', label: 'Zhipu GLM', hint: 'Gọi thẳng BigModel GLM.', prefix: 'glm/', examples: 'glm/glm-4.6, glm/glm-4.5, glm/glm-4-flash', placeholder: '••••.••••', docs: 'https://open.bigmodel.cn/usercenter/apikeys' },
   { key: 'openrouter', label: 'OpenRouter', hint: 'Cổng gộp nhiều model.', prefix: 'openrouter/', examples: 'openrouter/openai/gpt-4o-mini, openrouter/anthropic/claude-3.5-sonnet', placeholder: 'sk-or-…', docs: 'https://openrouter.ai/keys' },
+  { key: 'pexels', label: 'Pexels (ảnh minh họa)', hint: 'Tìm ảnh stock miễn phí cho quiz.', prefix: '', examples: '', placeholder: 'API key từ Pexels', docs: 'https://www.pexels.com/api/' },
+  { key: 'pixabay', label: 'Pixabay (ảnh miễn phí)', hint: 'Tìm ảnh từ Pixabay — đăng ký nhanh, không cần duyệt.', prefix: '', examples: '', placeholder: 'API key từ Pixabay', docs: 'https://pixabay.com/api/docs/' },
+  { key: 'google', label: 'Google API Key (ảnh)', hint: 'Google Custom Search để tìm ảnh chính xác.', prefix: '', examples: '', placeholder: 'AIza…', docs: 'https://console.cloud.google.com/apis/credentials' },
+  { key: 'googleCse', label: 'Google CSE ID (ảnh)', hint: 'Custom Search Engine ID — tạo tại cse.google.com.', prefix: '', examples: '', placeholder: '0123456789abcdef', docs: 'https://cse.google.com' },
 ]
 
 // Provider API keys. Keys are write-only from the client: server returns only a
 // masked presence descriptor, so the raw secret never comes back down the wire.
 function ApiKeysCard({ apiKeys, onSaved }: { apiKeys: Record<ProviderKey, MaskedKey>; onSaved: (s: SettingsShape) => void }) {
-  const [drafts, setDrafts] = useState<Record<ProviderKey, string>>({ gemini: '', deepseek: '', glm: '', openrouter: '' })
-  const [reveal, setReveal] = useState<Record<ProviderKey, boolean>>({ gemini: false, deepseek: false, glm: false, openrouter: false })
+  const [drafts, setDrafts] = useState<Record<ProviderKey, string>>({ gemini: '', deepseek: '', glm: '', openrouter: '', pexels: '', pixabay: '', google: '', googleCse: '' })
+  const [reveal, setReveal] = useState<Record<ProviderKey, boolean>>({ gemini: false, deepseek: false, glm: false, openrouter: false, pexels: false, pixabay: false, google: false, googleCse: false })
   const [busy, setBusy] = useState<ProviderKey | null>(null)
   const [note, setNote] = useState('')
 
@@ -1841,7 +1914,7 @@ function ApiKeysCard({ apiKeys, onSaved }: { apiKeys: Record<ProviderKey, Masked
                     autoComplete="off" spellCheck={false}
                   />
                   <button type="button" className="key-eye" title={reveal[p.key] ? 'Ẩn' : 'Hiện'} onClick={() => setReveal(x => ({ ...x, [p.key]: !x[p.key] }))}>
-                    {reveal[p.key] ? <EyeOff size={15} /> : <EyeIcon size={15} />}
+                    {reveal[p.key] ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
                 <button className="btn primary mini" disabled={!drafts[p.key].trim() || busy === p.key} onClick={() => saveKey(p.key)}>
@@ -2060,6 +2133,67 @@ function FileEditor({ path, onClose }: { path: string; onClose: () => void }) {
             </div>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+function ImageGenModal({ prompt, aspect, loading, onPromptChange, onAspectChange, onGenerate, onClose }: {
+  prompt: string
+  aspect: string
+  loading: boolean
+  onPromptChange: (v: string) => void
+  onAspectChange: (v: string) => void
+  onGenerate: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="modal" style={{ maxWidth: 520 }} onMouseDown={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div><h3><Image size={18} /> Tạo ảnh bằng AI</h3><div className="modal-path">Gemini 3 Pro Image qua OpenRouter</div></div>
+          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="field">
+            <label>Mô tả ảnh muốn tạo</label>
+            <textarea
+              value={prompt}
+              placeholder="VD: Tranh minh họa bài toán phân số lớp 5, phong cách hoạt hình dễ thương"
+              onChange={e => onPromptChange(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onGenerate() } }}
+              autoFocus
+              rows={3}
+            />
+          </div>
+          <div className="field">
+            <label>Tỉ lệ ảnh</label>
+            <div className="module-toggle-row">
+              {[
+                { key: 'square', label: 'Vuông 1:1' },
+                { key: 'landscape', label: 'Ngang 16:9' },
+                { key: 'portrait', label: 'Dọc 9:16' },
+              ].map(o => (
+                <button
+                  key={o.key}
+                  type="button"
+                  className={`qc-chip ${aspect === o.key ? 'active' : ''}`}
+                  onClick={() => onAspectChange(o.key)}
+                >{o.label}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <span className="modal-msg">{loading ? '⏳ Đang tạo ảnh... có thể mất 10-40 giây' : <span className="desc">Mô tả càng chi tiết, ảnh càng đẹp</span>}</span>
+          <div className="inline-actions">
+            <button className="btn ghost" onClick={onClose} disabled={loading}>Đóng</button>
+            <button className="btn primary" onClick={onGenerate} disabled={!prompt.trim() || loading}>
+              {loading ? <RefreshCw size={15} className="spin" /> : <Image size={15} />}
+              {loading ? ' Đang tạo…' : ' Tạo ảnh'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

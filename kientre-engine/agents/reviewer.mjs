@@ -32,7 +32,7 @@ Không khen chung chung để che lỗi. Luôn trả JSON hợp lệ.`
 
  const prompt = `Lớp: ${grade}, Môn: ${subject}.
 
-Hãy kiểm định tài liệu dưới đây theo chuẩn "zero tolerance".
+${subject.toLowerCase().includes('tiếng anh') ? 'LƯU Ý TIẾNG ANH: Nếu tài liệu có "Transcript (Nghe)" tức là bài nghe — transcript chính là nội dung audio để giáo viên đọc/thu âm. Không đánh FAIL vì "thiếu file âm thanh" nếu đã có transcript. Nếu transcript bằng tiếng Anh, câu hỏi và đáp án cũng phải bằng tiếng Anh.\n\n' : ''}Hãy kiểm định tài liệu dưới đây theo chuẩn "zero tolerance".
 
 Bắt buộc kiểm tra:
 1. Chính xác kiến thức và thuật ngữ.

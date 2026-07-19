@@ -27,13 +27,13 @@ BẮT BUỘC:
 - Nếu là Khoa học Lớp 5 và chủ đề rộng như vật chất/năng lượng: ưu tiên câu quan sát/phân loại rõ một bước; tránh que diêm cháy, năng lượng hóa học, khí không nhìn thấy, hoặc câu tự luận nhiều tiêu chí nếu không có bảng dữ kiện đầy đủ.
 - Nếu là Tiếng Việt Lớp 5: ưu tiên dạng an toàn, ít tranh cãi (đồng nghĩa/trái nghĩa, điền từ đúng ngữ cảnh, dấu câu, câu đơn giản). Tránh dạng phân loại từ ghép/từ láy/từ nhiều nghĩa nếu có thể gây tranh luận học thuật hoặc phụ thuộc ví dụ gượng ép.
 - Nếu là Tiếng Anh Lớp 5: CHIA THEO KỸ NĂNG trong note của từng câu. Các dạng hợp lệ:
-  + Nghe (Listening): note phải bắt đầu bằng "[Nghe]" kèm mô tả nội dung đoạn hội thoại/đoạn văn ngắn; Examiner sẽ tạo transcript + câu hỏi trắc nghiệm dựa trên transcript đó. Transcript phải là tiếng Anh đơn giản, Lớp 5, độ dài 40-80 từ.
-  + Đọc (Reading): note phải bắt đầu bằng "[Đọc]" kèm chủ đề đoạn văn; Examiner sẽ tạo đoạn văn ngắn + câu hỏi đọc hiểu.
-  + Ngữ pháp (Grammar): note bắt đầu bằng "[Ngữ pháp]" kèm chủ điểm ngữ pháp cụ thể (ví dụ: thì hiện tại đơn, so sánh hơn, giới từ, đại từ). Dạng trắc nghiệm hoặc điền từ.
-  + Từ vựng (Vocabulary): note bắt đầu bằng "[Từ vựng]" kèm chủ đề từ vựng. Dạng trắc nghiệm hoặc điền từ.
-  - Với Nghe: câu hỏi là trắc nghiệm 4 lựa chọn, KHÔNG cần audio file — thay vào đó Examiner tạo TRANSCRIPT để giáo viên đọc hoặc thu âm. Transcript nằm trong solution field.
-  - Với Đọc: đoạn văn ngắn (50-100 từ) trong question field, câu hỏi trắc nghiệm bên dưới.
-  - Với Ngữ pháp/Từ vựng: trắc nghiệm 4 lựa chọn hoặc điền từ vào chỗ trống.
+  + Nghe (Listening): **Nếu chủ đề chứa [Nghe], TOÀN BỘ câu trong quiz phải là dạng Nghe.** Mỗi câu note bắt đầu bằng "[Nghe]" kèm mô tả ngắn nội dung hội thoại/đoạn văn. Examiner sẽ tạo transcript riêng cho từng câu + câu hỏi trắc nghiệm dựa trên transcript. Transcript tiếng Anh đơn giản, Lớp 5, 40-80 từ. **KHÔNG trộn lẫn với câu đọc hiểu, ngữ pháp, hay hình ảnh.**
+  + Đọc (Reading): note bắt đầu bằng "[Đọc]" kèm chủ đề; Examiner tạo đoạn văn ngắn + câu hỏi đọc hiểu.
+  + Ngữ pháp (Grammar): note bắt đầu bằng "[Ngữ pháp]" kèm chủ điểm ngữ pháp. Trắc nghiệm hoặc điền từ.
+  + Từ vựng (Vocabulary): note bắt đầu bằng "[Từ vựng]" kèm chủ đề. Trắc nghiệm hoặc điền từ.
+  + Viết (Writing): note bắt đầu bằng "[Viết]". Sắp xếp từ hoặc viết câu.
+  - Với Nghe: TẤT CẢ câu hỏi là trắc nghiệm, mỗi câu có transcript riêng. Transcript là thứ DUY NHẤT giáo viên cần để tạo audio.
+  - Với Đọc: đoạn văn ngắn (50-100 từ) trong question, câu hỏi trắc nghiệm bên dưới.
   - Tránh dạng nối/sắp xếp từ/tìm lỗi nếu không hiển thị đầy đủ các thành phần.
 - Nếu là Lịch sử và Địa lý Lớp 5: tránh câu phụ thuộc bản đồ/vị trí đánh số nếu không chắc tạo được bản đồ rõ. Nếu không có hình, đổi sang câu mô tả bằng chữ. Tránh nội dung có thể lệch bộ sách như số đại dương nếu chưa khóa chuẩn.
 - Nếu thời gian rất ngắn (≤5 phút), chỉ lập 2-3 câu ngắn; không lập tự luận nhiều bước hoặc bài toán lời văn dài.

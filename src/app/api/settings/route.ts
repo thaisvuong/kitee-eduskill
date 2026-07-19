@@ -28,7 +28,7 @@ const EDU_AGENT_DEFAULT_MODELS = {
 }
 
 // Direct AI providers the engine can call without 9router (see kientre-engine/server/llm.mjs).
-const PROVIDER_KEYS = ['gemini', 'deepseek', 'glm', 'openrouter'] as const
+const PROVIDER_KEYS = ['gemini', 'deepseek', 'glm', 'openrouter', 'pexels', 'pixabay', 'google', 'googleCse'] as const
 type ProviderKey = typeof PROVIDER_KEYS[number]
 
 function defaultModule() {

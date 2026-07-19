@@ -84,6 +84,10 @@ async function readProviderKeyEnv(hermesHome: string): Promise<Record<string, st
    deepseek: 'DEEPSEEK_API_KEY',
    glm: 'GLM_API_KEY',
    openrouter: 'OPENROUTER_API_KEY',
+   pexels: 'PEXELS_API_KEY',
+   pixabay: 'PIXABAY_API_KEY',
+   google: 'GOOGLE_API_KEY',
+   googleCse: 'GOOGLE_CSE_ID',
   }
   for (const [prov, envName] of Object.entries(map)) {
    const v = String(keys[prov] || '').trim()
