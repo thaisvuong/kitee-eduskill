@@ -147,6 +147,10 @@ function isRetryable(err) {
  if (m.includes('missing api key')) return false
  return m.includes('fetch failed') || m.includes('timeout') || m.includes('429') || m.includes('quota') || m.includes('rate limit') || m.includes('503') || m.includes('502') || m.includes('connection')
 }
+function isFallbackable(err) {
+ const m = String(err?.message || '').toLowerCase()
+ return m.includes('missing api key') || m.includes('no api key') || m.includes('no active credentials') || isRetryable(err)
+}
 
 async function callWithRetries(model, system, user, temperature) {
  let lastErr
@@ -175,7 +179,7 @@ export async function callModel(model, system, user, temperature = 0.5) {
    return await callWithRetries(m, system, user, temperature)
   } catch (err) {
    lastErr = err
-   if (!isRetryable(err)) throw err
+   if (!isFallbackable(err)) throw err
    console.warn(`⚠️ Model ${m} failed: ${err.message}. Chuyển model...`)
   }
  }
@@ -237,7 +241,7 @@ export async function callChat({ model, messages, tools, temperature = 0.4 }) {
     await delay(RETRY_DELAY_MS)
    }
   }
-  if (!isRetryable(lastErr)) throw lastErr
+  if (!isFallbackable(lastErr)) throw lastErr
   if (m !== model) logModel('fallback', { primary: model, fallbackTo: m, reason: lastErr?.message || 'unknown', mode: 'chat' })
   console.warn(`⚠️ callChat model ${m} failed: ${lastErr?.message}. Chuyển model...`)
  }

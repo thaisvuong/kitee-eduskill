@@ -106,9 +106,10 @@ export async function composeDocument(topic, grade, subject = 'Toán', opts = {}
   const draftPath = path.join(outDir, 'draft_incremental.md')
   await writeFile(draftPath, `# BẢN NHÁP NỘI DUNG: ${topic}\n\n`, 'utf8')
 
-  console.log(`🚀 Đã lập blueprint. Bắt đầu soạn song song và lưu trữ liên tục...`)
+  console.log(`🚀 Đã lập blueprint. Bắt đầu soạn tuần tự và lưu trữ liên tục...`)
 
-  const workerTasks = chunks.map(async (chunk, idx) => {
+  const sections = []
+  for (const [idx, chunk] of chunks.entries()) {
    // Soạn thảo -> Kiểm định (Judge). Soạn lại nếu vượt cấp/sai kiến thức.
    let draft, judgeResult, attempts = 0
    do {
@@ -123,8 +124,9 @@ export async function composeDocument(topic, grade, subject = 'Toán', opts = {}
    // VisualCurator: tự quyết định có cần thêm hình minh họa sư phạm hay không.
    // Agent này chỉ ĐỀ XUẤT hình; lỗi hình không được làm fail pipeline.
    const visualMode = String(process.env.HERMES_VISUALS || 'auto').toLowerCase()
+   const visualsOff = ['off', '0', 'false'].includes(visualMode)
    const visualCandidates = [...(draft.blocks || [])]
-   if (!['off', '0', 'false'].includes(visualMode)) {
+   if (!visualsOff) {
     try {
      const decision = await curateVisual({
       topic, grade, subject, chunk,
@@ -157,6 +159,7 @@ export async function composeDocument(topic, grade, subject = 'Toán', opts = {}
    let webImageCount = 0
    for (const b of visualCandidates) {
     if (b.type === 'exercise') continue  // bài tập được chuẩn hóa ở khâu riêng
+    if (b.type === 'figure' && visualsOff) continue
     if (b.type !== 'figure') { blocks.push(b); continue }
     const figId = `${idx}_${figCount++}`
     try {
@@ -200,10 +203,8 @@ export async function composeDocument(topic, grade, subject = 'Toán', opts = {}
    await appendFile(draftPath, `\n## ${chunk}\n${blocksToText(draft.blocks)}\n\n---\n`, 'utf8')
 
    console.log(`  ✅ Hoàn thành & Đã lưu: ${chunk}`)
-   return { heading: chunk, blocks }
-  })
-
-  const sections = await Promise.all(workerTasks)
+   sections.push({ heading: chunk, blocks })
+  }
 
   // ── PHẦN BÀI TẬP CHUẨN HÓA ──
   // Ví dụ (có đáp án ngay) đã nằm trong phần dạy ở trên.

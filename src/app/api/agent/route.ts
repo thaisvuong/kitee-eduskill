@@ -235,12 +235,15 @@ export async function POST(req: Request) {
     GOOGLE_OAUTH_JSON: settings.googleCredentialFile || kientreConfig.googleCredentialFile,
     HERMES_DRIVE_PARENT_ID: moduleDriveFolderId,
     KIENTRE_DRIVE_FOLDER_ID: moduleDriveFolderId,
-    KIENTRE_QUIZ_STREAM_GDOC: settings.uploadDrive ? '1' : (process.env.KIENTRE_QUIZ_STREAM_GDOC || ''),
+    // Quiz KHÔNG tạo Google Doc realtime nữa: Drive upload chỉ sau child xong + có .docx final.
+    KIENTRE_QUIZ_STREAM_GDOC: '',
     NINE_ROUTER_BASE_URL: routerBaseUrl,
     NINEROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
     HERMES_ROUTER_URL: routerBaseUrl.replace(/\/v1\/?$/, ''),
     HERMES_WORKER_MODEL: payload.config.model,
     HERMES_FALLBACK_MODELS: settings.fallbackModels || process.env.HERMES_FALLBACK_MODELS || 'gc/gemini-2.5-flash,gc/gemini-2.5-pro,cc/claude-opus-4-8,openrouter/openrouter/free',
+    HERMES_MODEL_RETRIES: String(settings.modelRetries ?? process.env.HERMES_MODEL_RETRIES ?? '2'),
+    HERMES_MODEL_RETRY_DELAY_MS: String(settings.retryDelayMs ?? process.env.HERMES_MODEL_RETRY_DELAY_MS ?? '1200'),
    }
 
    const child = spawn('node', [agentPath], { cwd: engineDir, env })

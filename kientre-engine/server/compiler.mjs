@@ -11,7 +11,7 @@ function execFileP(cmd, args, opts = {}) {
 }
 
 async function officeCliPolish(docModelPath, outputPath) {
- if (process.env.KIENTRE_OFFICECLI_WORD === '0') return false
+ if (process.env.KIENTRE_OFFICECLI_WORD !== '1') return false
  try { await execFileP('officecli', ['--version']) } catch { return false }
  const tmp = await mkdtemp(path.join(os.tmpdir(), 'kientre-officecli-'))
  try {

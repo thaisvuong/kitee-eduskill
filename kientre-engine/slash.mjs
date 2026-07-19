@@ -24,7 +24,7 @@ import { stdin, stdout } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const KIENTRE_WORKSPACE = '/Users/nguyenthaivuong/Desktop/HermesWorkSpace/Kientre'
+const KIENTRE_WORKSPACE = '/Users/nguyenthaivuong/Desktop/HermesWorkSpace/Kitee'
 process.env.HERMES_WORKSPACE_DIR ||= KIENTRE_WORKSPACE
 process.env.KIENTRE_OUTPUT_DIR ||= path.join(process.env.HERMES_WORKSPACE_DIR, 'Output')
 process.env.HERMES_HOME ||= '/Users/nguyenthaivuong/.hermes/profiles/cmkitee'

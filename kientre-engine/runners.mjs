@@ -10,11 +10,11 @@ import { reviewDocument } from './agents/reviewer.mjs'
 import { runJudge } from './agents/judge.mjs'
 import { generateExam, generateQuizQuestion } from './agents/examiner.mjs'
 import { normalizeQuizCount, planQuizSet, trimQuizPlan } from './agents/quizplanner.mjs'
+import { runArchitect } from './agents/architect.mjs'
 import { drawTikzFigure } from './agents/artist.mjs'
 import { fetchImage } from './agents/imagefetcher.mjs'
 import { fetchExerciseSources } from './server/websearch.mjs'
 import { notebookRefs } from './server/notebook.mjs'
-import { createQuizDoc, appendQuizQuestion } from './server/gdoc_stream.mjs'
 
 function dateStr() { return new Date().toISOString().split('T')[0] }
 function gradeNum(grade) { const m = String(grade).match(/\d+/); return m ? m[0] : 'x' }
@@ -29,26 +29,52 @@ function parseFrameQuestion(line) {
  const [notePart, visualPart = ''] = tail.split(/\s+·\s+hình:\s*/i)
  return { index: Number(m[1]), points, type, note: notePart.trim(), visual: visualPart.trim(), frameLine: line.replace(/<!--.*?-->/g, '').trim() }
 }
+function frameSnippet(lines, picked, radius = 5) {
+ const start = Math.max(0, picked - radius)
+ const end = Math.min(lines.length, picked + radius + 1)
+ return lines.slice(start, end).join('\n')
+}
 async function takeFrameQuestion(framePath, quiz, question) {
  const raw = await readFile(framePath, 'utf8')
  const lines = raw.split('\n')
- let inQuiz = false, picked = -1
+ let inQuiz = false
+ let quizStart = -1, quizEnd = lines.length
  for (let i = 0; i < lines.length; i++) {
-  if (lines[i].startsWith('## ')) inQuiz = lines[i].includes(quiz.title || `Quiz ${quiz.index}`)
-  if (!inQuiz) continue
-  const parsed = parseFrameQuestion(lines[i])
-  if (parsed) { picked = i; break }
+  if (!lines[i].startsWith('## ')) continue
+  const isQuiz = lines[i].includes(quiz.title || `Quiz ${quiz.index}`)
+  if (isQuiz) { quizStart = i; inQuiz = true; continue }
+  if (inQuiz) { quizEnd = i; break }
  }
- if (picked < 0) return question
- const parsed = parseFrameQuestion(lines[picked])
- lines[picked] = `${lines[picked]} <!-- TAKEN ${new Date().toISOString()} -->`
+ if (quizStart < 0) return question
+ const candidates = []
+ for (let i = quizStart + 1; i < quizEnd; i++) {
+  const parsed = parseFrameQuestion(lines[i])
+  if (parsed) candidates.push({ lineIndex: i, parsed })
+ }
+ if (!candidates.length) return question
+ const wantedIndex = Number(question.index || 0)
+ const wantedNote = String(question.note || '').trim().toLowerCase()
+ let pickedEntry = candidates.find(x => wantedIndex > 0 && x.parsed.index === wantedIndex)
+ if (!pickedEntry && wantedNote) pickedEntry = candidates.find(x => x.parsed.note.trim().toLowerCase() === wantedNote)
+ if (!pickedEntry) pickedEntry = candidates[0]
+ lines[pickedEntry.lineIndex] = `${lines[pickedEntry.lineIndex]} <!-- TAKEN ${new Date().toISOString()} -->`
  await writeFile(framePath, lines.join('\n'), 'utf8')
- return { ...question, ...parsed, index: question.index || parsed.index, framePath, frameMd: raw.slice(0, 12000) }
+ return {
+  ...question,
+  ...pickedEntry.parsed,
+  index: wantedIndex || pickedEntry.parsed.index,
+  framePath,
+  frameMd: frameSnippet(lines, pickedEntry.lineIndex, 5),
+ }
 }
 function judgeBoundaries(grade, subject) {
+ const g = Number(String(grade || '').match(/\d+/)?.[0] || 0)
+ const subj = String(subject || '').toLowerCase()
  return [
   `Phải đúng chương trình ${subject} ${grade}`,
   `Không dùng kiến thức/phương pháp vượt cấp so với ${grade}`,
+  ...(g === 5 ? ['Toán lớp 5 không dùng thuật ngữ lớp 6 như BCNN, bội chung nhỏ nhất, mẫu số chung nhỏ nhất, số nguyên tố cùng nhau; khi quy đồng chỉ nói mẫu số chung.', 'Toán lớp 5 không dùng phép chia phân số hoặc phân số đảo ngược; nếu gặp dạng đó phải đổi sang cộng/trừ/nhân phân số vừa sức.'] : []),
+  ...(g === 5 && subj.includes('khoa') ? ['Khoa học lớp 5 tránh thuật ngữ vật lí vượt mức như điện trở, hiệu điện thế, công suất; giải thích bằng quan sát đời sống.', 'Không dùng nhãn Hỗn hợp trừ khi câu hỏi thật sự kiểm tra hỗn hợp; với chủ đề rộng hãy dùng nhãn Cơ bản hoặc Vận dụng cơ bản.', 'Câu hỏi về năng lượng phải nêu tiêu chí rõ: năng lượng chính và các dạng chuyển hóa/hao phí nếu yêu cầu.'] : []),
   'Không được sai đáp án, sai đơn vị, thiếu dữ kiện hoặc lập luận mơ hồ',
   'Cách trình bày phải đủ rõ để giáo viên kiểm tra lại trước khi dùng',
  ]
@@ -197,13 +223,23 @@ export async function runExam(params = {}) {
 
 function quizQuestionBlocks(q, detail) {
  const isMc = String(q.type || '').toLowerCase().includes('trắc')
- const hints = (detail.hints || []).slice(0, 3).map((h, i) => `Gợi ý ${i + 1}: ${String(h).replace(/^Gợi ý\s*\d+\s*[:.\-]?\s*/i, '').trim()}`)
- const blocks = [{ type: 'subheading', text: `CÂU ${q.index} (${q.points} điểm${q.type ? ` · ${q.type}` : ''})` }]
+ const qType = String(q.type || '').toLowerCase()
+ const isMatch = qType.includes('nối')
+ const isOrdering = qType.includes('sắp xếp')
+ const isFixing = qType.includes('sửa lỗi')
+ const clean = sanitizeQuizText
+ const hints = (detail.hints || []).slice(0, 3).map((h, i) => `Gợi ý ${i + 1}: ${clean(h).replace(/^Gợi ý\s*\d+\s*[:.\-]?\s*/i, '').trim()}`)
+ const meta = { index: q.index, type: q.type, points: q.points, note: q.note, visual: q.visual, framePath: q.framePath, frameLine: q.frameLine, frameMd: q.frameMd }
+ const blocks = [{ type: 'subheading', text: `CÂU ${q.index} (${q.points} điểm${q.type ? ` · ${q.type}` : ''})`, quizQuestion: meta }]
  if (detail.imagePath) blocks.push({ type: 'image', path: detail.imagePath, caption: detail.visual })
- blocks.push({ type: 'exercise', title: 'Đề bài', question: [detail.question, isMc && detail.options?.length ? detail.options.join('\n') : ''].filter(Boolean).join('\n'), lines: q.type === 'tự luận' ? 6 : 2 })
- if (hints.length) blocks.push({ type: 'note', title: 'Gợi ý', text: hints.join('\n') })
- blocks.push({ type: 'solution', title: 'Đáp án đúng', content: detail.answer || '' })
- blocks.push({ type: 'solution', title: 'Lời giải chi tiết', content: detail.solution || '' })
+ const visualText = detail.visual && !detail.imagePath ? `Mô tả hình: ${detail.visual}` : ''
+ const questionText = detail.visual && !detail.imagePath ? clean(detail.question).replace(/hình\s+(vẽ\s+)?(dưới đây|sau đây)/gi, 'mô tả sau') : clean(detail.question)
+ const renderedAnswer = isMatch || isOrdering || isFixing ? '' : clean(detail.answer)
+ const renderedQuestion = [questionText, visualText, isMc && detail.options?.length ? detail.options.map(clean).join('\n') : ''].filter(Boolean).join('\n')
+ blocks.push({ type: 'exercise', title: 'Đề bài', question: renderedQuestion, lines: q.type === 'tự luận' ? 6 : 2, quizQuestion: meta })
+ if (hints.length) blocks.push({ type: 'note', title: 'Gợi ý', text: hints.join('\n'), quizQuestion: meta })
+ blocks.push({ type: 'solution', title: 'Đáp án đúng', content: renderedAnswer, quizQuestion: meta })
+ blocks.push({ type: 'solution', title: 'Lời giải chi tiết', content: clean(detail.solution), quizQuestion: meta })
  return blocks
 }
 
@@ -212,13 +248,69 @@ function preferTikzFirst(visual = '') {
  return /ô vuông|o vuong|lưới|luoi|tô màu|to mau|hình chữ nhật|hinh chu nhat|hình vuông|hinh vuong|tam giác|tam giac|phân số|phan so|đường chéo|duong cheo|góc|goc|abcd|efgh|trục|toa do|tọa độ|biểu đồ|bieu do/.test(s)
 }
 
+function normalizeQuestionPlan(question, subject) {
+ const subj = String(subject || '').toLowerCase()
+ const type = String(question?.type || '').toLowerCase()
+ const note = String(question?.note || '')
+ const visual = String(question?.visual || '')
+ const out = { ...question }
+ const push = extra => { out.note = [String(out.note || '').trim(), extra].filter(Boolean).join(' | ') }
+
+ if (subj.includes('tiếng anh')) {
+  if (type.includes('nối')) {
+   out.type = 'trắc nghiệm'
+   push('Chuyển thành trắc nghiệm 4 lựa chọn tự đủ dữ kiện; không phụ thuộc cột nối hay hình rời.')
+  }
+  if (type.includes('sắp xếp')) {
+   out.type = 'điền đáp án'
+   push('Đề phải tự chứa đầy đủ các từ cần sắp xếp trong cùng dòng; học sinh viết lại câu hoàn chỉnh.')
+  }
+  if (type.includes('sửa lỗi')) {
+   out.type = 'tự luận ngắn'
+   push('Đề phải chứa trực tiếp câu sai; học sinh viết lại câu đúng, không dùng phương án A/B/C/D nếu đề không có lựa chọn.')
+  }
+ }
+
+ if (subj.includes('tiếng việt')) {
+  if (/từ ghép|từ láy|từ nhiều nghĩa/i.test(note)) push('Chỉ dùng ví dụ rất rõ, tự nhiên, ít tranh cãi; nếu rủi ro hãy đổi sang đồng nghĩa/trái nghĩa hoặc điền từ đúng ngữ cảnh.')
+ }
+
+ if (subj.includes('khoa')) {
+  if (/bảng|phân loại|danh sách/i.test(note)) push('Đề phải chèn đầy đủ bảng/danh sách ngay trong câu; không nhắc bảng dưới đây nếu bảng không hiện.')
+  if (/hơi nước|bay hơi|ngưng tụ/i.test(note)) push('Diễn giải bằng quan sát đời sống, tránh khái niệm vượt mức và tránh làn trắng mơ hồ nếu không giải thích rõ.')
+ }
+
+ if (subj.includes('lịch sử') || subj.includes('địa') || subj.includes('địa lý')) {
+  if (/bản đồ|đánh số|vị trí/i.test(note) || /bản đồ|đánh số|vị trí/i.test(visual)) {
+   out.type = 'trắc nghiệm'
+   out.visual = ''
+   push('Không phụ thuộc bản đồ/hình. Viết câu mô tả vị trí bằng chữ đủ dữ kiện để chọn đáp án.')
+  }
+ }
+
+ return out
+}
+
 export async function runQuizSet(params = {}) {
  const { grade = 'Lớp 4', subject = 'Toán', topic = '', quizCount = 3, totalScore = 10, timeMinutes = 14, reference = '', notebook = '', useWeb = false, onProgress = () => {} } = params
  const count = normalizeQuizCount(quizCount)
  const step = text => { try { onProgress({ type: 'assistant', text }) } catch {} }
+ console.log(`🧭 Architect chốt ranh giới lớp trước khi lập quiz (${grade}, ${subject})`)
+ step(`Architect: lập ranh giới kiến thức, mục tiêu, thuật ngữ cho ${grade}`)
+ let finalReference = String(reference || '').trim()
+ try {
+  const blueprint = await runArchitect(topic, grade, subject)
+  const architectRef = [
+   `MỤC TIÊU ARCHITECT:\n${(blueprint.objectives || []).map(x => `- ${x}`).join('\n')}`,
+   `RANH GIỚI ARCHITECT:\n${[...(blueprint.boundaries || []), ...judgeBoundaries(grade, subject)].map(x => `- ${x}`).join('\n')}`,
+  ].join('\n')
+  finalReference = [architectRef, finalReference].filter(Boolean).join('\n\n').slice(0, 6000)
+ } catch (err) {
+  console.warn(`⚠️ Architect không chạy được (${err.message}); dùng ranh giới mặc định.`)
+  finalReference = [`RANH GIỚI MẶC ĐỊNH:\n${judgeBoundaries(grade, subject).map(x => `- ${x}`).join('\n')}`, finalReference].filter(Boolean).join('\n\n').slice(0, 6000)
+ }
  console.log(`🧭 QuizPlanner lập khung: ${count} quiz · ${totalScore} điểm · ${timeMinutes} phút (${grade}, ${subject})`)
  step(`QuizPlanner: lập bảng khung ${count} quiz, ${totalScore} điểm, ${timeMinutes} phút`)
- let finalReference = String(reference || '').trim()
  if (useWeb) {
   try {
    const ws = await fetchExerciseSources(topic, grade)
@@ -245,30 +337,19 @@ export async function runQuizSet(params = {}) {
  console.log(`🧾 Đã xuất khung câu hỏi (.md): ${framePath}`)
  step('QuizPlanner: đã xuất file .md khung câu hỏi các quiz')
 
- // 2) Tạo Google Doc để chèn từng câu theo thời gian thực (nếu bật Drive/OAuth).
- const driveFolderId = process.env.HERMES_DRIVE_PARENT_ID || process.env.KIENTRE_DRIVE_FOLDER_ID || ''
- const wantGdoc = process.env.KIENTRE_QUIZ_STREAM_GDOC === '1'
- let gdoc = null
- if (wantGdoc) {
-  gdoc = await createQuizDoc(`Bộ quiz ${topic} · ${subject} ${grade}`, driveFolderId)
-  if (gdoc) { console.log(`📝 Google Doc: ${gdoc.url}`); step(`Word/GoogleDocs: đã tạo tài liệu, sẽ chèn từng câu ngay khi soạn xong — ${gdoc.url}`) }
-  else console.warn('⚠️ Không tạo được Google Doc (bỏ qua chèn realtime, vẫn xuất Word local).')
- }
-
+ // KHÔNG tạo Google Doc realtime cho quiz: chỉ soạn bản nháp local -> QA -> Word final -> upload sau.
  const sections = []
  for (const quiz of plan.quizzes) {
-  const quizTitle = `${quiz.title || `Quiz ${quiz.index}`} — ${quiz.difficulty || ''}`
+  const quizTitle = `${quiz.title || `Quiz ${quiz.index}`} — ${String(subject).toLowerCase().includes('toán') ? 'Hỗn hợp' : 'Cơ bản'}`
   console.log(`🧩 Examiner soạn ${quiz.title || `Quiz ${quiz.index}`}: ${quiz.difficulty || ''}`)
   step(`Examiner: bắt đầu ${quiz.title || `Quiz ${quiz.index}`} (${quiz.difficulty || ''})`)
   const blocks = [{ type: 'note', title: 'Thông tin quiz', text: `${quiz.goal || ''}\nTổng điểm: ${totalScore}. Thời gian: ${timeMinutes} phút. Độ khó: ${quiz.difficulty || ''}` }]
-  let firstOfQuiz = true
   for (const qPlan of quiz.questions || []) {
-   const q = await takeFrameQuestion(framePath, quiz, qPlan)
+   const q = normalizeQuestionPlan(await takeFrameQuestion(framePath, quiz, qPlan), subject)
    console.log(`  ✍️ Câu ${q.index}: ${q.type} · ${q.points} điểm`)
    step(`Examiner: lấy khung.md và soạn ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} · ${q.type} · ${q.points} điểm`)
    // Ưu tiên nguồn web/tài liệu cho câu này, rồi chế lại về đúng loại (trắc nghiệm/điền/tự luận).
    const detail = await generateQuizQuestion({ grade, subject, topic, globalContext: plan.globalContext, quiz, question: q, reference: finalReference })
-   let imageUrl = ''
    if (detail.visual) {
     step(`Artist: minh hoạ ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} (ưu tiên ảnh web, không có thì tự vẽ)`)
     const img = path.join(outDir, 'images', `quiz${quiz.index}_cau${q.index}.png`)
@@ -276,46 +357,138 @@ export async function runQuizSet(params = {}) {
      // Hình toán có cấu trúc rõ: ưu tiên TikZ trước để tránh ảnh web sai mô tả.
      if (preferTikzFirst(detail.visual)) {
       if (await drawTikzFigure(detail.visual, img)) detail.imagePath = img
-      else if (await fetchImage(`${topic} ${detail.visual}`, img)) { detail.imagePath = img; imageUrl = await readImageSourceUrl(img) }
+      else if (await fetchImage(`${topic} ${detail.visual}`, img)) detail.imagePath = img
      } else {
-      if (await fetchImage(`${topic} ${detail.visual}`, img)) { detail.imagePath = img; imageUrl = await readImageSourceUrl(img) }
-      else if (await drawTikzFigure(detail.visual, img)) { detail.imagePath = img }
+      if (await fetchImage(`${topic} ${detail.visual}`, img)) detail.imagePath = img
+      else if (await drawTikzFigure(detail.visual, img)) detail.imagePath = img
      }
     } catch { /* hình không làm fail câu */ }
    }
    blocks.push(...quizQuestionBlocks(q, detail))
-   // 3) Chèn NGAY câu vừa xong vào Google Doc (không đợi hết bộ quiz).
-   if (gdoc) {
-    const ok = await appendQuizQuestion(gdoc.documentId, {
-     quizTitle: firstOfQuiz ? quizTitle : '',
-     index: q.index, points: q.points, type: q.type,
-     question: detail.question, options: detail.options,
-     hints: detail.hints, answer: detail.answer, solution: detail.solution,
-     imageUrl,
-    })
-    if (ok) step(`Word/GoogleDocs: đã chèn câu ${q.index} của ${quiz.title || `Quiz ${quiz.index}`} vào tài liệu`)
-   }
-   await buildWord({ title: `Bộ quiz ${topic}`, subject, grade, topic, sections: [...sections, { heading: quizTitle, blocks }] }, folder, false)
+   // Bản nháp local .docx (không phải final): cập nhật để user thấy tiến độ.
+   await buildWord({ title: `Bộ quiz ${topic} (nháp)`, subject, grade, topic, sections: [...sections, { heading: quizTitle, blocks }] }, folder, false)
    step(`Word: đã chèn câu ${q.index} của ${quiz.title || `Quiz ${quiz.index}`} vào file .docx nháp`)
-   firstOfQuiz = false
   }
   sections.push({ heading: quizTitle, blocks })
  }
- const wordPath = await buildWord({ title: `Bộ quiz ${topic}`, subject, grade, topic, sections }, folder)
- step('Word: xuất file .docx bộ quiz')
+
+ // ===== QA toàn bộ bản nháp: Judge + Reviewer, lặp đến pass (KISS, tối đa vài vòng) =====
+ const boundaries = judgeBoundaries(grade, subject)
+ let judge = null, review = null, passed = false
+ const maxRounds = 3
+ for (let round = 1; round <= maxRounds; round++) {
+  const draftText = sectionsToText({ topic, subject, grade, totalScore, timeMinutes, sections })
+  console.log(`⚖️ Judge kiểm bản nháp (vòng ${round}/${maxRounds}): đáp án, độ phù hợp lớp, tổng điểm, số quiz/câu`)
+  step(`Judge: kiểm đáp án, độ phù hợp lớp, tổng điểm, số quiz/câu (vòng ${round})`)
+  judge = await runJudge(draftText.slice(0, 16000), boundaries, grade)
+  console.log(`🔍 Reviewer rà soát toàn bộ đề sau bản nháp (vòng ${round}/${maxRounds})`)
+  step(`Reviewer: rà soát toàn bộ đề sau bản nháp (vòng ${round})`)
+  review = await reviewDocument(draftText, grade, subject)
+  passed = isQaPass(judge, review)
+  if (passed) { console.log(`✅ QA pass ở vòng ${round}.`); step(`QA pass: Judge/Reviewer không còn lỗi chặn (vòng ${round})`); break }
+  const problems = qaProblems(judge, review)
+  console.warn(`⚠️ QA chưa pass (vòng ${round}): ${problems.slice(0, 6).join(' | ') || 'có lỗi chặn'}`)
+  step(`QA chưa pass (vòng ${round}), sẽ sửa bản nháp: ${problems.slice(0, 4).join(' | ') || 'lỗi chặn'}`)
+  if (round === maxRounds) break
+  // Sửa từng quiz bằng Examiner dựa trên phản hồi QA, rồi lặp lại QA.
+  for (const section of sections) {
+   const fixNote = problems.join('\n')
+   for (let bi = 0; bi < section.blocks.length; bi++) {
+    const b = section.blocks[bi]
+    if (b.type !== 'exercise' || b.title !== 'Đề bài') continue
+    // Tìm cụm câu (đề/gợi ý/đáp án/lời giải) quanh block này để soạn lại.
+    // KISS: chỉ đánh dấu context cho Examiner qua reference; soạn lại nội dung câu.
+    try {
+     const meta = b.quizQuestion || {}
+     const refixed = await generateQuizQuestion({
+      grade, subject, topic, globalContext: plan.globalContext,
+      quiz: { title: section.heading, difficulty: '' },
+      question: { ...meta, note: [meta.note, b.question].filter(Boolean).join('\n\nBẢN CŨ:\n') },
+      reference: `${finalReference}\n\nYÊU CẦU SỬA LỖI TỪ QA:\n${fixNote}`,
+     })
+     if (refixed?.question) b.question = sanitizeQuizText([refixed.question, refixed.options?.length ? refixed.options.join('\n') : ''].filter(Boolean).join('\n'))
+     const hintIdx = section.blocks.findIndex((x, k) => k > bi && x.type === 'note' && x.title === 'Gợi ý')
+     const solIdx = section.blocks.findIndex((x, k) => k > bi && x.type === 'solution' && x.title === 'Lời giải chi tiết')
+     const ansIdx = section.blocks.findIndex((x, k) => k > bi && x.type === 'solution' && x.title === 'Đáp án đúng')
+     if (hintIdx >= 0 && refixed?.hints?.length) section.blocks[hintIdx].text = sanitizeQuizText(refixed.hints.slice(0, 3).map((h, i) => `Gợi ý ${i + 1}: ${String(h).replace(/^Gợi ý\s*\d+\s*[:.\-]?\s*/i, '').trim()}`).join('\n'))
+     if (ansIdx >= 0 && refixed?.answer) section.blocks[ansIdx].content = sanitizeQuizText(refixed.answer)
+     if (solIdx >= 0 && refixed?.solution) section.blocks[solIdx].content = sanitizeQuizText(refixed.solution)
+    } catch { /* giữ nguyên câu nếu sửa lỗi */ }
+   }
+  }
+ }
+
+ const finalWarnings = !passed ? qaProblems(judge, review) : []
+ if (!passed) {
+  step(`QA FAIL sau ${maxRounds} vòng — vẫn xuất final với cảnh báo [Cần check], vẫn upload Drive nếu bật`)
+  console.warn(`⚠️ QA chưa đạt sau ${maxRounds} vòng. Vẫn xuất file có cảnh báo để giáo viên kiểm tra: ${finalWarnings.slice(0, 8).join(' | ') || 'không rõ'}`)
+ }
+
+ // ===== Chỉ sau QA pass: xuất final local Word (kèm block KIỂM ĐỊNH TRƯỚC KHI DÙNG) =====
+ const finalSections = [
+  { heading: 'KIỂM ĐỊNH TRƯỚC KHI DÙNG', blocks: reviewSummaryBlocks(review, judge) },
+  ...(finalWarnings.length ? [{ heading: 'CẦN CHECK TRƯỚC KHI DÙNG', blocks: [{ type: 'list', items: finalWarnings.slice(0, 12).map(x => `[Cần check: ${x}]`) }] }] : []),
+  ...sections,
+ ]
+ const wordPath = await buildWord({ title: `Bộ quiz ${topic}`, subject, grade, topic, sections: finalSections }, folder)
+ step(`Word: xuất file .docx bộ quiz (final${passed ? ', sau QA pass' : ', có cảnh báo Cần check'})`)
  await maybeUploadFiles([wordPath], folder)
- console.log(`✅ Đã xuất bộ quiz: ${wordPath}`)
- if (gdoc) console.log(`📝 Google Doc (chèn realtime): ${gdoc.url}`)
+ console.log(`✅ Đã xuất bộ quiz (final, QA pass): ${wordPath}`)
  return wordPath
 }
 
-// Đọc URL ảnh nguồn (web) từ file <img>.json do imagefetcher ghi — dùng để chèn ảnh vào Google Doc.
-async function readImageSourceUrl(imgPath) {
- try {
-  const meta = JSON.parse(await readFile(`${imgPath}.json`, 'utf8'))
-  const url = String(meta.url || '')
-  return /^https?:\/\//i.test(url) ? url : ''
- } catch { return '' }
+// Ghép sections thành text để Judge/Reviewer chấm toàn bộ đề.
+function sectionsToText({ topic, subject, grade, totalScore, timeMinutes, sections }) {
+ const lines = [`Bộ quiz ${topic} · ${subject} · ${grade}`, `Mỗi quiz ${totalScore} điểm · ${timeMinutes} phút`, '']
+ for (const s of sections) {
+  lines.push(`### ${s.heading}`)
+  for (const b of s.blocks || []) {
+   if (b.type === 'subheading') lines.push(b.text || '')
+   else if (b.type === 'exercise') lines.push(`${b.title || ''}: ${b.question || ''}`)
+   else if (b.type === 'note') lines.push(`${b.title || ''}: ${b.text || ''}`)
+   else if (b.type === 'solution') lines.push(`${b.title || ''}: ${b.content || ''}`)
+  }
+  lines.push('')
+ }
+ return lines.join('\n')
+}
+
+function sanitizeQuizText(s = '') {
+ return String(s || '')
+  .replace(/\\n/g, '\n')
+  .replace(/mẫu số chung nhỏ nhất|bội chung nhỏ nhất|BCNN/gi, 'mẫu số chung')
+  .replace(/ước chung lớn nhất|ƯCLN|UCLN/gi, 'số chia chung phù hợp')
+  .replace(/ước chung của\s+(\d+)\s+và\s+(\d+)\s+là\s+(\d+)/gi, 'có thể chia cả $1 và $2 cho $3')
+  .replace(/phân số đảo ngược/gi, 'cách phù hợp')
+  .replace(/điện trở/gi, 'bộ phận bên trong')
+  .replace(/nếu có/gi, '')
+  .replace(/Hơi nước nhẹ hơn không khí nên bay lên cao/gi, 'Nước nhận nhiệt, nóng lên; nước có thể bay hơi ở mặt thoáng, và khi sôi thì sự hóa hơi xảy ra mạnh tạo hơi nước')
+  .replace(/hơi nước nhẹ hơn không khí nên bay lên cao/gi, 'nước nhận nhiệt, nóng lên; nước có thể bay hơi ở mặt thoáng, và khi sôi thì sự hóa hơi xảy ra mạnh tạo hơi nước')
+  .replace(/khí không màu/gi, 'khói hoặc khí sinh ra khi cháy')
+  .replace(/chuyển hóa thành ______ năng lượng/gi, 'chuyển hóa chủ yếu thành ______')
+  .replace(/năng lượng trong que diêm/gi, 'năng lượng hóa học dự trữ trong que diêm')
+  .replace(/Quan sát bản đồ thế giới bên dưới/gi, 'Dựa vào mô tả sau')
+  .replace(/quan sát hình ảnh/gi, 'dựa vào mô tả')
+}
+
+// Điều kiện pass: Judge không FAIL, Reviewer không FAIL, không có blockingErrors/requiredFixes/lỗi đáp án nghiêm trọng.
+function isQaPass(judge, review) {
+ if (judge && String(judge.status).toUpperCase() === 'FAIL') return false
+ if (review && String(review.verdict).toUpperCase() === 'FAIL') return false
+ if ((review?.blockingErrors || []).length) return false
+ if ((review?.requiredFixes || []).length) return false
+ if ((review?.factualChecks || []).some(x => String(x.status).toUpperCase() === 'FAIL')) return false
+ return true
+}
+
+function qaProblems(judge, review) {
+ const out = []
+ if (judge && String(judge.status).toUpperCase() === 'FAIL') out.push(`Judge FAIL: ${judge.reason || ''}`)
+ for (const x of review?.blockingErrors || []) out.push(`Lỗi chặn: ${x}`)
+ for (const x of review?.requiredFixes || []) out.push(`Phải sửa: ${x}`)
+ for (const x of review?.errors || []) out.push(`Lỗi: ${x}`)
+ for (const x of review?.factualChecks || []) if (String(x.status).toUpperCase() === 'FAIL') out.push(`Sai: ${x.item} — ${x.note || ''}`)
+ return out.filter(Boolean)
 }
 
 // Markdown khung câu hỏi các quiz (xuất trước khi soạn chi tiết).

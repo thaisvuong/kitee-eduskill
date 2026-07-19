@@ -104,7 +104,7 @@ const MODE_OPTIONS: { key: NonNullable<ModuleConfig['mode']>; label: string; des
 
 type View = 'chat' | 'queue' | 'files' | 'settings' | 'skills' | 'notebooklm' | 'agent'
 type RunStatus = 'running' | 'done' | 'error'
-type DriveUp = { name: string; docxLink?: string; gdocLink?: string }
+type DriveUp = { name: string; docxLink?: string; docxViewLink?: string; docxDownloadLink?: string; gdocLink?: string; gdocError?: string }
 type Msg =
   | { id: string; role: 'user'; text: string }
   | { id: string; role: 'bot'; text: string }
@@ -195,9 +195,9 @@ function isQuickChat(text: string) {
 
 // ---- Agent flow ----------------------------------------------------------
 const AGENT_FLOWS: Record<string, string[]> = {
-  topic: ['Intent', 'Architect', 'Source', 'Judge', 'VisualCurator', 'Artist', 'Student', 'Reviewer', 'Word'],
-  quiz: ['Intent', 'QuizPlanner', 'Examiner', 'Artist', 'Student', 'Judge', 'Reviewer', 'Word'],
-  test: ['Intent', 'Examiner', 'Reviewer', 'Word'],
+  topic: ['Intent', 'Architect', 'Source/NotebookLM', 'Judge', 'VisualCurator', 'Artist', 'Student', 'Reviewer', 'Word'],
+  quiz: ['Intent', 'Architect', 'Source/NotebookLM', 'QuizPlanner', 'Examiner', 'Artist', 'Judge', 'Reviewer', 'Word'],
+  test: ['Intent', 'Examiner', 'Judge', 'Reviewer', 'Word'],
   solve: ['Read', 'Solver', 'Judge', 'Reviewer', 'Word'],
   review: ['Read', 'Reviewer', 'Judge', 'Word'],
 }
@@ -478,7 +478,8 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
       .then(d => setSessionMemory(d?.ok ? (d.item || null) : null))
       .catch(() => setSessionMemory(null))
   }, [activeSessionId])
-  useEffect(() => { setDriveInput(cfg?.driveFolderUrl || cfg?.driveFolderId || '') }, [cfg?.driveFolderUrl, cfg?.driveFolderId])
+  const canonicalDriveFolderUrl = cfg?.driveFolderId ? `https://drive.google.com/drive/folders/${cfg.driveFolderId}` : (cfg?.driveFolderUrl || '')
+  useEffect(() => { setDriveInput(canonicalDriveFolderUrl) }, [canonicalDriveFolderUrl])
   useEffect(() => {
     if (!cfg?.driveFolderId || cfg?.driveFolderName) return
     fetch('/api/drive-folder?id=' + encodeURIComponent(cfg.driveFolderId)).then(r => r.json()).then(d => { if (d?.ok && d.name) setModuleField('driveFolderName', d.name as any) }).catch(() => {})
@@ -762,13 +763,25 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
   const useNotebook = (cfg?.mode || 'detail') === 'notebook'
   const selectedNb = cfg?.selectedNotebookIds?.length ? cfg!.selectedNotebookIds! : (cfg?.notebookIds || [])
   const driveFolderLabel = cfg?.driveFolderName || (cfg?.driveFolderId ? 'Đang nhận diện folder…' : 'Chưa cấu hình Drive')
-  const driveCanSave = Boolean(driveInput.trim()) && !driveFolderLabel.startsWith('Lỗi:')
+  const driveCanSave = Boolean(driveInput.trim()) // vẫn cho lưu khi đang lỗi để user sửa link sai như drive.google.cc
   async function saveDriveFolder() {
     const v = driveInput.trim()
-    const id = v.match(/folders\/([A-Za-z0-9_-]+)/)?.[1] || v
+    // Normalize: raw ID | /folders/<id> | ?id=<id>. Bắt domain sai (vd drive.google.cc).
+    let id = ''
+    const m = v.match(/folders\/([A-Za-z0-9_-]+)/) || v.match(/[?&]id=([A-Za-z0-9_-]+)/)
+    if (m) {
+      if (/^https?:\/\//i.test(v) && !/(^|\.)drive\.google\.com/i.test(v)) {
+        await setModuleField('driveFolderName', 'Lỗi: link Drive không hợp lệ (phải là drive.google.com)' as any); return
+      }
+      id = m[1]
+    } else if (/^[A-Za-z0-9_-]{10,}$/.test(v)) {
+      id = v // raw folder ID
+    } else {
+      await setModuleField('driveFolderName', 'Lỗi: cần link https://drive.google.com/drive/folders/<id> hoặc folder ID' as any); return
+    }
     const d = await fetch('/api/drive-folder?id=' + encodeURIComponent(id)).then(r => r.json()).catch(() => null)
-    if (!d?.ok || !d.name) { await setModuleField('driveFolderName', 'Lỗi: không đọc được folder' as any); return }
-    const url = d.webViewLink || (id ? `https://drive.google.com/drive/folders/${id}` : v)
+    if (!d?.ok || !d.name) { await setModuleField('driveFolderName', `Lỗi: không đọc được folder${d?.error ? ' — ' + String(d.error).slice(0, 200) : ''}` as any); return }
+    const url = d.webViewLink || `https://drive.google.com/drive/folders/${id}`
     await patchModuleFields({ driveFolderUrl: url, driveFolderId: id, driveFolderName: d.name, uploadDrive: true } as any)
     setDriveInput(url)
   }
@@ -796,7 +809,7 @@ function Chat({ module, activeSessionId, sessionMeta, moduleRunningCount, settin
               <Cloud size={15} />
               <div>
                 <div className="drive-topbar-label">Drive output</div>
-                <div className="drive-topbar-name">{driveFolderLabel}</div>
+                <div className="drive-topbar-name" title={driveFolderLabel}>{driveFolderLabel}</div>
               </div>
             </div>
             <div className="inline-input-action drive-topbar-input">
@@ -1344,7 +1357,9 @@ function MsgView({ msg, onRun, sessionMemory }: { msg: Msg; onRun: (t: string) =
                 <div key={i} className="drive-item">
                   <span className="drive-name">{u.name}</span>
                   {u.gdocLink && <a className="file-link" href={u.gdocLink} target="_blank" rel="noreferrer"><FileText size={13} /> Google Docs</a>}
-                  {u.docxLink && <a className="file-link" href={u.docxLink} target="_blank" rel="noreferrer"><Download size={13} /> .docx</a>}
+                  {!u.gdocLink && u.gdocError && <span className="warn-inline">⚠️ Chưa convert được Google Docs</span>}
+                  {(u.docxDownloadLink || u.docxLink) && <a className="file-link" href={u.docxDownloadLink || u.docxLink} target="_blank" rel="noreferrer"><Download size={13} /> .docx</a>}
+                  {!u.gdocLink && u.docxViewLink && <a className="file-link" href={u.docxViewLink} target="_blank" rel="noreferrer"><FileText size={13} /> Xem trên Drive</a>}
                 </div>
               ))}
             </div>
@@ -1381,7 +1396,9 @@ function MsgView({ msg, onRun, sessionMemory }: { msg: Msg; onRun: (t: string) =
                 <div key={i} className="drive-item">
                   <span className="drive-name">{u.name}</span>
                   {u.gdocLink && <a className="file-link" href={u.gdocLink} target="_blank" rel="noreferrer"><FileText size={13} /> Google Docs</a>}
-                  {u.docxLink && <a className="file-link" href={u.docxLink} target="_blank" rel="noreferrer"><Download size={13} /> .docx</a>}
+                  {!u.gdocLink && u.gdocError && <span className="warn-inline">⚠️ Chưa convert được Google Docs</span>}
+                  {(u.docxDownloadLink || u.docxLink) && <a className="file-link" href={u.docxDownloadLink || u.docxLink} target="_blank" rel="noreferrer"><Download size={13} /> .docx</a>}
+                  {!u.gdocLink && u.docxViewLink && <a className="file-link" href={u.docxViewLink} target="_blank" rel="noreferrer"><FileText size={13} /> Xem trên Drive</a>}
                 </div>
               ))}
             </div>
@@ -1569,8 +1586,8 @@ function Files({ module, settings, queue }: { module: ModuleKey; settings: Setti
                 {withDrive.flatMap(job => (job.drive || []).map((u, i) => (
                   <tr key={job.id + '_' + i}>
                     <td className="wrap-cell">{u.name}</td>
-                    <td>{u.gdocLink ? <a className="file-link" href={u.gdocLink} target="_blank" rel="noreferrer"><FileText size={13} /> Mở</a> : '—'}</td>
-                    <td>{u.docxLink ? <a className="file-link" href={u.docxLink} target="_blank" rel="noreferrer"><Download size={13} /> Tải</a> : '—'}</td>
+                    <td>{u.gdocLink ? <a className="file-link" href={u.gdocLink} target="_blank" rel="noreferrer"><FileText size={13} /> Mở</a> : (u.gdocError ? <span className="warn-inline">⚠️ Lỗi convert</span> : '—')}</td>
+                    <td>{(u.docxDownloadLink || u.docxLink) ? <a className="file-link" href={u.docxDownloadLink || u.docxLink} target="_blank" rel="noreferrer"><Download size={13} /> Tải</a> : '—'}</td>
                     <td className="wrap-cell">{titleOf(job)}</td>
                   </tr>
                 )))}

@@ -8,7 +8,7 @@ const engine = path.join(root, 'kientre-engine')
 const port = 43219
 const flows = {
  topic: ['Intent','Architect','Source/NotebookLM','Judge','VisualCurator','Artist','Student','Reviewer','Word'],
- quiz: ['Intent','QuizPlanner','Examiner','Artist','Student','Judge','Reviewer','Word'],
+ quiz: ['Intent','Architect','Source/NotebookLM','QuizPlanner','Examiner','Artist','Judge','Reviewer','Word'],
  test: ['Intent','Examiner','Judge','Reviewer','Word'],
  solve: ['Read/Extract','Solver','Judge','Reviewer','Word'],
  review: ['Read/Extract','Reviewer','Judge','Word'],

@@ -210,7 +210,9 @@ def main():
         uploaded.append({
             'name': f.name,
             'docxId': (docx or {}).get('id'),
-            'docxLink': (docx or {}).get('webViewLink'),
+            'docxLink': (docx or {}).get('webContentLink') or (docx or {}).get('webViewLink'),
+            'docxViewLink': (docx or {}).get('webViewLink'),
+            'docxDownloadLink': (docx or {}).get('webContentLink'),
             'gdocId': (gdoc or {}).get('id'),
             'gdocLink': (gdoc or {}).get('webViewLink'),
             'gdocError': gdoc_error,

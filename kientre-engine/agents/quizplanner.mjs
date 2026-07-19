@@ -23,6 +23,12 @@ BẮT BUỘC:
 - Mỗi quiz là một đề riêng hoàn chỉnh.
 - Không dừng ở mức cơ bản. Quiz đầu đã phải có ít nhất 1 câu dễ nhầm. Nếu có nhiều quiz, quiz sau tăng bẫy, tăng suy luận, tăng số bước.
 - Quiz cuối khó nhất trong ${count} quiz nhưng vẫn trong ranh giới ${grade}.
+- Nếu là Toán Lớp 5: không lập dạng chia phân số, không dùng phân số đảo ngược, không ghi BCNN/bội chung nhỏ nhất/mẫu số chung nhỏ nhất; chỉ dùng cộng, trừ, nhân phân số, so sánh, rút gọn, tìm phân số của một số, bài toán lời văn vừa sức.
+- Nếu là Khoa học Lớp 5 và chủ đề rộng như vật chất/năng lượng: ưu tiên câu quan sát/phân loại rõ một bước; tránh que diêm cháy, năng lượng hóa học, khí không nhìn thấy, hoặc câu tự luận nhiều tiêu chí nếu không có bảng dữ kiện đầy đủ.
+- Nếu là Tiếng Việt Lớp 5: ưu tiên dạng an toàn, ít tranh cãi (đồng nghĩa/trái nghĩa, điền từ đúng ngữ cảnh, dấu câu, câu đơn giản). Tránh dạng phân loại từ ghép/từ láy/từ nhiều nghĩa nếu có thể gây tranh luận học thuật hoặc phụ thuộc ví dụ gượng ép.
+- Nếu là Tiếng Anh Lớp 5: chỉ dùng các dạng dễ chấm và tự đủ dữ kiện như trắc nghiệm 4 lựa chọn, điền từ có câu hoàn chỉnh, hoặc sửa lỗi trực tiếp trong câu. Tránh dạng nối/sắp xếp từ/chọn phương án A-B-C-D nếu đề không thể hiện đầy đủ danh sách, hình hoặc các phương án.
+- Nếu là Lịch sử và Địa lý Lớp 5: tránh câu phụ thuộc bản đồ/vị trí đánh số nếu không chắc tạo được bản đồ rõ. Nếu không có hình, đổi sang câu mô tả bằng chữ. Tránh nội dung có thể lệch bộ sách như số đại dương nếu chưa khóa chuẩn.
+- Nếu thời gian rất ngắn (≤5 phút), chỉ lập 2-3 câu ngắn; không lập tự luận nhiều bước hoặc bài toán lời văn dài.
 - Mỗi câu có: số điểm, loại câu, và note là DẠNG BÀI (chỉ mô tả loại bài + dữ kiện dự kiến + bẫy + năng lực), KHÔNG phải đề bài hoàn chỉnh.
 - note CHỈ mô tả dạng bài để Examiner triển khai sau. TUYỆT ĐỐI KHÔNG viết đề hoàn chỉnh với số liệu cụ thể, KHÔNG tạo đáp án, KHÔNG tạo lời giải, KHÔNG tạo hints/gợi ý trong plan.
 - note phải nêu: loại câu (vd cộng hai phân số khác mẫu, rút gọn phân số, so sánh 2 phân số, tính diện tích xung quanh hình hộp chữ nhật), dữ kiện dự kiến (vd dài/rộng/cao là số tự nhiên), bẫy sai thường gặp, năng lực kiểm tra, mức khó, và yêu cầu hình nếu hợp lý.

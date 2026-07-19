@@ -19,7 +19,7 @@ function resolveOutputDir() {
  if (direct) return path.resolve(direct.replace(/^~(?=\/|$)/, process.env.HOME || ''))
  const workspace = process.env.HERMES_WORKSPACE_DIR || process.env.KIENTRE_WORKSPACE_DIR
  if (workspace) return path.join(path.resolve(workspace.replace(/^~(?=\/|$)/, process.env.HOME || '')), 'Output')
- const kientreWorkspace = '/Users/nguyenthaivuong/Desktop/HermesWorkSpace/Kientre'
+ const kientreWorkspace = '/Users/nguyenthaivuong/Desktop/HermesWorkSpace/Kitee'
  if (fs.existsSync(kientreWorkspace)) return path.join(kientreWorkspace, 'Output')
  return path.join(SUB_ROOT, 'output')
 }
