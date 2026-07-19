@@ -6,6 +6,10 @@
 
 set -euo pipefail
 
+NONINTERACTIVE="${KIENTRE_NONINTERACTIVE:-0}"
+SKIP_BROWSER="${KIENTRE_SKIP_BROWSER:-$NONINTERACTIVE}"
+SKIP_START="${KIENTRE_SKIP_START:-0}"
+
 BLUE=$'\033[1;34m'; ORANGE=$'\033[1;33m'; GREEN=$'\033[1;32m'; RED=$'\033[1;31m'; RESET=$'\033[0m'
 
 banner() {
@@ -110,8 +114,11 @@ ensure_python_deps() {
  done
  [ -n "${py:-}" ] || { warn "Không tìm thấy Python 3. Bỏ qua cài lib Python — tính năng Word sẽ không chạy."; return; }
  log "Cài Python deps cho Kientre bằng $py..."
- env -u PYTHONPATH -u PYTHONHOME "$py" -m pip install --user --quiet -r "$KIENTRE_ENGINE_DIR/requirements.txt" \
-  || warn "Cài lib Python thất bại — hãy cài tay: pip install -r kientre-engine/requirements.txt"
+ if ! env -u PYTHONPATH -u PYTHONHOME "$py" -m pip install --user --quiet -r "$KIENTRE_ENGINE_DIR/requirements.txt"; then
+  warn "Cài theo requirements thất bại. Thử fallback từng gói..."
+  env -u PYTHONPATH -u PYTHONHOME "$py" -m pip install --user --quiet python-docx latex2mathml mathml2omml==0.0.2 matplotlib pymupdf Pillow \
+   || warn "Cài lib Python thất bại — hãy cài tay: pip install -r kientre-engine/requirements.txt"
+ fi
 }
 ensure_python_deps
 
@@ -174,9 +181,20 @@ Bước tiếp theo:
 
 EOF
 
-open_url "http://localhost:20128"
-read -r -p "Đã nhập key xong? Nhấn ENTER để chạy Kientre... " _
-open_url "http://localhost:3100"
+if [ "$SKIP_BROWSER" != "1" ]; then
+ open_url "http://localhost:20128"
+fi
+if [ "$NONINTERACTIVE" != "1" ]; then
+ read -r -p "Đã nhập key xong? Nhấn ENTER để chạy Kientre... " _
+fi
+if [ "$SKIP_BROWSER" != "1" ]; then
+ open_url "http://localhost:3100"
+fi
+
+if [ "$SKIP_START" = "1" ]; then
+ ok "Bỏ qua npm start vì KIENTRE_SKIP_START=1"
+ exit 0
+fi
 
 log "Chạy Kientre web app..."
 exec npm start

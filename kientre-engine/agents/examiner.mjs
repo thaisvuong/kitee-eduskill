@@ -32,11 +32,11 @@ function gradeBoundaryText(grade) {
 }
 
 export async function generateQuizQuestion(o, model = process.env.HERMES_EXAMINER_MODEL || 'gc/gemini-2.5-flash') {
- const { grade, subject, topic, globalContext = '', quiz = {}, question = {}, reference = '' } = o
+ const { grade, subject, topic, globalContext = '', quiz = {}, question = {}, reference = '', allowWebSearch = false } = o
  const boundary = gradeBoundaryText(grade)
  const webQuery = `${topic} ${grade} ${subject} ${question.type || ''} ${question.note || ''}`.trim()
  let webRef = ''
- if (reference) try {
+ if (allowWebSearch && reference) try {
   const web = await searchWeb(webQuery, 3)
   webRef = web.map((r, i) => `Nguồn ${i + 1}: ${r.title}\n${r.snippet || ''}\n${r.url || ''}`).join('\n\n').slice(0, 1800)
  } catch { /* ignore web failure */ }

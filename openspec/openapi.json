@@ -1,351 +1,869 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "KientreAAA Local API",
+    "title": "KientreAAA Web App API",
     "version": "0.1.0",
-    "description": "Local Next.js API for KientreAAA education workflows. Secrets are accepted only through local server routes and are never returned raw."
+    "description": "OpenAPI spec for KientreAAA local-first Next.js web app. Covers module execution, agent runs, NotebookLM, local files, Drive helpers, settings, masked Google OAuth, and update endpoints. SSE endpoints are documented with text/event-stream responses. Secrets are never returned raw; examples use placeholders only."
   },
   "servers": [
-    { "url": "http://localhost:3100", "description": "Local standalone server" }
+    {
+      "url": "http://localhost:3100",
+      "description": "Default local production port"
+    }
   ],
   "tags": [
-    { "name": "Runtime" },
-    { "name": "Agent" },
-    { "name": "Files" },
-    { "name": "Settings" },
-    { "name": "Workspace" },
-    { "name": "Google" },
-    { "name": "NotebookLM" }
+    { "name": "health" },
+    { "name": "settings" },
+    { "name": "models" },
+    { "name": "google-auth" },
+    { "name": "drive" },
+    { "name": "files" },
+    { "name": "sources" },
+    { "name": "skills" },
+    { "name": "sessions" },
+    { "name": "memory" },
+    { "name": "notebooklm" },
+    { "name": "chat" },
+    { "name": "run" },
+    { "name": "agent" },
+    { "name": "update" },
+    { "name": "app-info" }
   ],
   "paths": {
     "/api/health": {
       "get": {
-        "tags": ["Runtime"],
-        "summary": "Return app health and effective local config",
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "tags": ["health"],
+        "summary": "Health and resolved runtime config",
+        "responses": {
+          "200": {
+            "description": "Health payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "app": { "type": "string" },
+                    "config": { "$ref": "#/components/schemas/KientreConfig" }
+                  },
+                  "required": ["ok", "app", "config"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kientre-info": {
+      "get": {
+        "tags": ["app-info"],
+        "summary": "Resolved app/workspace info",
+        "parameters": [
+          {
+            "name": "moduleKey",
+            "in": "query",
+            "schema": { "type": "string" },
+            "required": false,
+            "description": "Optional module key to resolve module-specific defaults"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App info payload"
+          }
+        }
       }
     },
     "/api/models": {
       "get": {
-        "tags": ["Settings"],
-        "summary": "List available LLM models from router and configured direct providers",
-        "parameters": [{ "$ref": "#/components/parameters/Router" }],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "tags": ["models"],
+        "summary": "List available models from local router plus direct providers",
+        "parameters": [
+          {
+            "name": "router",
+            "in": "query",
+            "schema": { "type": "string" },
+            "required": false,
+            "description": "Override router base URL, e.g. http://localhost:20128/v1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "models": { "type": "array", "items": { "type": "string" } },
+                    "direct": { "type": "array", "items": { "type": "string" } },
+                    "router": { "type": "string" },
+                    "routerError": { "type": "string" }
+                  },
+                  "required": ["ok", "models", "direct", "router"]
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/settings": {
       "get": {
-        "tags": ["Settings"],
-        "summary": "Read masked app settings",
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "tags": ["settings"],
+        "summary": "Read masked app settings and module configuration",
+        "responses": {
+          "200": {
+            "description": "Masked settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "settings": { "$ref": "#/components/schemas/SettingsResponse" },
+                    "modules": {
+                      "type": "object",
+                      "additionalProperties": { "$ref": "#/components/schemas/ModuleMeta" }
+                    },
+                    "path": { "type": "string" }
+                  },
+                  "required": ["ok", "settings", "modules", "path"]
+                }
+              }
+            }
+          }
+        }
       },
       "post": {
-        "tags": ["Settings"],
-        "summary": "Update whitelisted settings and per-module config",
-        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "tags": ["settings"],
+        "summary": "Update persisted settings (write-only for API keys)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SettingsUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated masked settings"
+          }
+        }
       }
     },
-    "/api/run": {
+    "/api/google-auth": {
+      "get": {
+        "tags": ["google-auth"],
+        "summary": "Read masked Google OAuth/token status",
+        "responses": {
+          "200": {
+            "description": "Masked credential status",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GoogleAuthStatus" }
+              }
+            }
+          }
+        }
+      },
       "post": {
-        "tags": ["Agent"],
-        "summary": "Run a slash-command engine job and stream SSE logs",
+        "tags": ["google-auth"],
+        "summary": "Upload OAuth JSON, create consent URL, exchange auth code, or verify Drive access",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": {
+                        "description": "OAuth client JSON or token JSON. Raw secrets are accepted only in POST and never returned back.",
+                        "oneOf": [
+                          { "type": "string" },
+                          { "type": "object", "additionalProperties": true }
+                        ]
+                      }
+                    },
+                    "required": ["token"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": { "type": "string", "enum": ["auth-url"] }
+                    },
+                    "required": ["action"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": { "type": "string", "enum": ["auth-code"] },
+                      "code": { "type": "string" },
+                      "url": { "type": "string" }
+                    },
+                    "required": ["action"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": { "type": "string", "enum": ["verify"] }
+                    },
+                    "required": ["action"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success response for upload/auth-url/auth-code/verify" },
+          "400": { "$ref": "#/components/responses/Error400" }
+        }
+      }
+    },
+    "/api/drive-folder": {
+      "get": {
+        "tags": ["drive"],
+        "summary": "Resolve Drive folder metadata from folder ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Folder metadata or validation result" },
+          "400": { "$ref": "#/components/responses/Error400" }
+        }
+      }
+    },
+    "/api/files": {
+      "get": {
+        "tags": ["files"],
+        "summary": "List visible files in workspace/output areas",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "File listing" }
+        }
+      },
+      "delete": {
+        "tags": ["files"],
+        "summary": "Delete a file or directory entry by path",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Delete result" },
+          "400": { "$ref": "#/components/responses/Error400" }
+        }
+      }
+    },
+    "/api/file": {
+      "get": {
+        "tags": ["files"],
+        "summary": "Read one file",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "File content payload" },
+          "400": { "$ref": "#/components/responses/Error400" }
+        }
+      },
+      "put": {
+        "tags": ["files"],
+        "summary": "Write one file",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["jobId", "command"],
                 "properties": {
-                  "jobId": { "type": "string" },
-                  "command": { "type": "string", "examples": ["/es-create phân số lớp 4"] },
-                  "settings": { "$ref": "#/components/schemas/RunSettings" }
-                }
+                  "path": { "type": "string" },
+                  "content": { "type": "string" }
+                },
+                "required": ["path", "content"]
               }
             }
           }
         },
-        "responses": { "200": { "$ref": "#/components/responses/EventStream" } }
-      },
-      "delete": {
-        "tags": ["Agent"],
-        "summary": "Cancel a slash-command job",
-        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "404": { "$ref": "#/components/responses/JsonError" } }
-      }
-    },
-    "/api/agent": {
-      "post": {
-        "tags": ["Agent"],
-        "summary": "Run module mini-agent and stream SSE steps",
-        "description": "Quiz settings are treated as hard contracts. When Drive upload is enabled, quiz jobs also create/update Google Docs and upload final DOCX/converted Docs to the selected Drive folder.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["jobId", "task"],
-                "properties": {
-                  "jobId": { "type": "string" },
-                  "task": { "type": "string" },
-                  "moduleKey": { "$ref": "#/components/schemas/ModuleKey" },
-                  "history": { "type": "array", "items": { "type": "object" } },
-                  "settings": { "$ref": "#/components/schemas/RunSettings" },
-                  "sessionId": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": { "200": { "$ref": "#/components/responses/EventStream" } }
-      },
-      "delete": {
-        "tags": ["Agent"],
-        "summary": "Cancel a mini-agent job",
-        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "404": { "$ref": "#/components/responses/JsonError" } }
-      }
-    },
-    "/api/chat": {
-      "post": {
-        "tags": ["Agent"],
-        "summary": "Return quick chat guidance or built command text",
-        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
-      }
-    },
-    "/api/memory-chat": {
-      "post": {
-        "tags": ["Agent"],
-        "summary": "Answer status/session-memory questions without starting a module flow",
-        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "responses": {
+          "200": { "description": "Write result" },
+          "400": { "$ref": "#/components/responses/Error400" }
+        }
       }
     },
     "/api/upload": {
       "post": {
-        "tags": ["Files"],
-        "summary": "Upload a local source file into Output/_uploads",
+        "tags": ["files"],
+        "summary": "Upload one or more local files to workspace upload area",
         "requestBody": {
           "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file"],
                 "properties": {
-                  "file": { "type": "string", "format": "binary" },
-                  "outputDir": { "type": "string" }
+                  "file": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" }
+                  }
                 }
               }
             }
           }
         },
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" }, "403": { "$ref": "#/components/responses/JsonError" }, "413": { "$ref": "#/components/responses/JsonError" } }
+        "responses": {
+          "200": { "description": "Uploaded file metadata" },
+          "400": { "$ref": "#/components/responses/Error400" }
+        }
       }
     },
-    "/api/files": {
+    "/api/sources": {
       "get": {
-        "tags": ["Files"],
-        "summary": "List output files or preview/download one DOCX/PDF",
-        "parameters": [
-          { "name": "root", "in": "query", "schema": { "type": "string" } },
-          { "name": "preview", "in": "query", "schema": { "type": "string" } },
-          { "name": "download", "in": "query", "schema": { "type": "string" } }
-        ],
-        "responses": { "200": { "description": "JSON list, HTML preview, or file stream" }, "403": { "$ref": "#/components/responses/JsonError" }, "404": { "$ref": "#/components/responses/JsonError" } }
+        "tags": ["sources"],
+        "summary": "List saved sources",
+        "responses": { "200": { "description": "Sources store" } }
+      },
+      "post": {
+        "tags": ["sources"],
+        "summary": "Create or update a saved source",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SourceItem" }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Upsert result" } }
       },
       "delete": {
-        "tags": ["Files"],
-        "summary": "Delete an output file by relative path",
+        "tags": ["sources"],
+        "summary": "Delete a source by id",
         "parameters": [
-          { "name": "root", "in": "query", "schema": { "type": "string" } },
-          { "name": "rel", "in": "query", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
         ],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "403": { "$ref": "#/components/responses/JsonError" }, "404": { "$ref": "#/components/responses/JsonError" } }
+        "responses": { "200": { "description": "Delete result" } }
       }
     },
-    "/api/file": {
+    "/api/skills": {
       "get": {
-        "tags": ["Files"],
-        "summary": "Read an editable engine/skill file",
-        "parameters": [{ "$ref": "#/components/parameters/Path" }],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "403": { "$ref": "#/components/responses/JsonError" } }
+        "tags": ["skills"],
+        "summary": "List user-defined module skills",
+        "responses": { "200": { "description": "Skill store" } }
       },
-      "put": {
-        "tags": ["Files"],
-        "summary": "Overwrite an existing editable engine/skill file",
-        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "403": { "$ref": "#/components/responses/JsonError" }, "413": { "$ref": "#/components/responses/JsonError" } }
+      "post": {
+        "tags": ["skills"],
+        "summary": "Create or update a skill",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SkillItem" }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Upsert result" } }
+      },
+      "delete": {
+        "tags": ["skills"],
+        "summary": "Delete a skill by id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "description": "Delete result" } }
       }
     },
     "/api/sessions": {
       "get": {
-        "tags": ["Workspace"],
-        "summary": "List sessions, get one session, optionally include module queue jobs",
+        "tags": ["sessions"],
+        "summary": "List saved module sessions",
         "parameters": [
-          { "name": "id", "in": "query", "schema": { "type": "string" } },
-          { "name": "module", "in": "query", "schema": { "$ref": "#/components/schemas/ModuleKey" } },
-          { "name": "includeJobs", "in": "query", "schema": { "type": "string", "enum": ["0", "1"] } }
+          { "name": "moduleKey", "in": "query", "required": false, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "responses": { "200": { "description": "Session list" } }
       },
       "post": {
-        "tags": ["Workspace"],
-        "summary": "Create/update sessions or remove/clear queue jobs",
-        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "404": { "$ref": "#/components/responses/JsonError" } }
+        "tags": ["sessions"],
+        "summary": "Create or update a session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SessionItem" }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Upsert result" } }
       },
       "delete": {
-        "tags": ["Workspace"],
-        "summary": "Delete a session",
-        "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "tags": ["sessions"],
+        "summary": "Delete a session by id",
+        "parameters": [
+          { "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Delete result" } }
       }
     },
     "/api/session-memory": {
       "get": {
-        "tags": ["Workspace"],
-        "summary": "Read stored memory summary for a session",
-        "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "tags": ["memory"],
+        "summary": "Get persisted memory for one session",
+        "parameters": [
+          { "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Session memory payload" } }
       }
     },
-    "/api/sources": {
-      "get": { "tags": ["Workspace"], "summary": "List reference sources", "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } },
-      "post": { "tags": ["Workspace"], "summary": "Create or update a reference source", "requestBody": { "$ref": "#/components/requestBodies/JsonBody" }, "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } },
-      "delete": { "tags": ["Workspace"], "summary": "Delete a reference source", "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } }
-    },
-    "/api/skills": {
-      "get": { "tags": ["Workspace"], "summary": "List default and custom prompt-pack skills", "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } },
-      "post": { "tags": ["Workspace"], "summary": "Create or update a prompt-pack skill", "requestBody": { "$ref": "#/components/requestBodies/JsonBody" }, "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } },
-      "delete": { "tags": ["Workspace"], "summary": "Delete a custom skill override", "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "$ref": "#/components/responses/JsonOk" } } }
-    },
-    "/api/google-auth": {
-      "get": {
-        "tags": ["Google"],
-        "summary": "Read masked Google OAuth status",
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
-      },
+    "/api/memory-chat": {
       "post": {
-        "tags": ["Google"],
-        "summary": "Save OAuth JSON, create auth URL, exchange code, or verify Drive access",
-        "description": "Raw OAuth JSON may be accepted in request body but raw credentials are never returned. Supported actions: auth-url, auth-code, verify; omit action to save credential JSON.",
-        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" } }
-      }
-    },
-    "/api/drive-folder": {
-      "get": {
-        "tags": ["Google"],
-        "summary": "Resolve a Drive folder/file id to metadata",
-        "parameters": [{ "name": "id", "in": "query", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" } }
+        "tags": ["memory"],
+        "summary": "Handle status/progress/memory chat outside hard module flow",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": { "type": "string" },
+                  "sessionId": { "type": "string" },
+                  "moduleKey": { "type": "string" },
+                  "runningJobs": {
+                    "type": "array",
+                    "items": { "type": "object", "additionalProperties": true }
+                  }
+                },
+                "required": ["message"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Assistant chat response" } }
       }
     },
     "/api/notebooklm": {
       "get": {
-        "tags": ["NotebookLM"],
-        "summary": "List notebooks or fetch NotebookLM status/sources",
+        "tags": ["notebooklm"],
+        "summary": "List notebooks or retrieve NotebookLM workspace state",
         "parameters": [
-          { "name": "action", "in": "query", "schema": { "type": "string", "enum": ["list", "status", "sources"] } },
-          { "name": "notebookId", "in": "query", "schema": { "type": "string" } }
+          { "name": "action", "in": "query", "required": false, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" } }
+        "responses": { "200": { "description": "NotebookLM GET response" } }
       },
       "post": {
-        "tags": ["NotebookLM"],
-        "summary": "Proxy NotebookLM actions through kientre_notebooklm.py",
-        "description": "Actions include ask, list-full, create, delete, rename, summary, metadata, source-add, source-refresh, artifact generation/download, and note/research/share operations.",
-        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "400": { "$ref": "#/components/responses/JsonError" } }
+        "tags": ["notebooklm"],
+        "summary": "Operate NotebookLM bridge (generate/list/select/etc.)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string" },
+                  "moduleKey": { "type": "string" },
+                  "notebookIds": { "type": "array", "items": { "type": "string" } },
+                  "prompt": { "type": "string" },
+                  "artifactType": { "type": "string" }
+                },
+                "required": ["action"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "NotebookLM action result" } }
       }
     },
-    "/api/kientre-info": {
-      "get": {
-        "tags": ["Runtime"],
-        "summary": "List Kientre engine agents, server modules, and relevant skills",
+    "/api/chat": {
+      "post": {
+        "tags": ["chat"],
+        "summary": "Legacy module chat endpoint",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": { "type": "string" },
+                  "settings": { "type": "object", "additionalProperties": true }
+                },
+                "required": ["message"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Chat result" } }
+      }
+    },
+    "/api/run": {
+      "post": {
+        "tags": ["run"],
+        "summary": "Run hard pipeline job and stream progress over SSE",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jobId": { "type": "string" },
+                  "command": { "type": "string" },
+                  "settings": { "type": "object", "additionalProperties": true }
+                },
+                "required": ["command"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-Sent Events stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "example": "event: log\ndata: {\"line\":\"☁️ Đang tải 1 file .docx lên Google Drive + chuyển Google Docs...\"}\n\n"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["run"],
+        "summary": "Cancel a running hard pipeline job",
         "parameters": [
-          { "name": "engineDir", "in": "query", "schema": { "type": "string" } },
-          { "name": "hermesHome", "in": "query", "schema": { "type": "string" } }
+          { "name": "jobId", "in": "query", "required": true, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+        "responses": { "200": { "description": "Cancel result" } }
+      }
+    },
+    "/api/agent": {
+      "post": {
+        "tags": ["agent"],
+        "summary": "Run agent-mode module and stream steps over SSE",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jobId": { "type": "string" },
+                  "task": { "type": "string" },
+                  "moduleKey": { "type": "string", "default": "topic" },
+                  "history": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": { "type": "string" },
+                        "content": { "type": "string" }
+                      }
+                    }
+                  },
+                  "settings": { "type": "object", "additionalProperties": true },
+                  "sessionId": { "type": "string" }
+                },
+                "required": ["task"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-Sent Events stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "example": "event: agent_step\ndata: {\"type\":\"assistant\",\"text\":\"Intent: chạy flow — yêu cầu tạo/xử lý tài liệu\"}\n\n"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["agent"],
+        "summary": "Cancel a running agent job",
+        "parameters": [
+          { "name": "jobId", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Cancel result" } }
       }
     },
     "/api/update": {
-      "get": { "tags": ["Runtime"], "summary": "Check local git update status against origin/main", "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "500": { "$ref": "#/components/responses/JsonError" } } },
-      "post": { "tags": ["Runtime"], "summary": "Run safe ff-only update, install, and build", "responses": { "200": { "$ref": "#/components/responses/JsonOk" }, "500": { "$ref": "#/components/responses/JsonError" } } }
+      "get": {
+        "tags": ["update"],
+        "summary": "Read current update status",
+        "responses": { "200": { "description": "Update status" } }
+      },
+      "post": {
+        "tags": ["update"],
+        "summary": "Run local self-update routine",
+        "responses": { "200": { "description": "Update execution result" } }
+      }
     }
   },
   "components": {
-    "parameters": {
-      "JobId": { "name": "jobId", "in": "query", "required": true, "schema": { "type": "string" } },
-      "Path": { "name": "path", "in": "query", "required": true, "schema": { "type": "string" } },
-      "Router": { "name": "router", "in": "query", "schema": { "type": "string", "format": "uri" } }
-    },
-    "requestBodies": {
-      "JsonBody": {
-        "required": true,
-        "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } }
-      }
-    },
     "responses": {
-      "JsonOk": {
-        "description": "JSON response with ok boolean",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OkResponse" } } }
-      },
-      "JsonError": {
-        "description": "JSON error response",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
-      },
-      "EventStream": {
-        "description": "Server-Sent Events stream",
+      "Error400": {
+        "description": "Bad request",
         "content": {
-          "text/event-stream": {
-            "schema": { "type": "string" },
-            "examples": {
-              "event": { "value": "event: start\ndata: {\"jobId\":\"job_1\"}\n\nevent: done\ndata: {\"code\":0}\n\n" }
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "ok": { "type": "boolean" },
+                "error": { "type": "string" }
+              },
+              "required": ["ok", "error"]
             }
           }
         }
       }
     },
     "schemas": {
-      "ModuleKey": { "type": "string", "enum": ["topic", "quiz", "test", "solve", "review"] },
-      "RunSettings": {
+      "KientreConfig": {
         "type": "object",
-        "additionalProperties": true,
         "properties": {
-          "module": { "$ref": "#/components/schemas/ModuleKey" },
+          "workspaceDir": { "type": "string" },
+          "outputDir": { "type": "string" },
+          "engineDir": { "type": "string" },
+          "hermesHome": { "type": "string" },
+          "driveParentId": { "type": "string" },
+          "googleCredentialFile": { "type": "string" },
+          "routerBaseUrl": { "type": "string" },
+          "defaultWorkerModel": { "type": "string" },
+          "defaultSummary": { "type": "boolean" },
+          "fallbackModels": { "type": "string" },
+          "modelRetries": { "type": "integer" },
+          "retryDelayMs": { "type": "integer" }
+        }
+      },
+      "MaskedKey": {
+        "type": "object",
+        "properties": {
+          "present": { "type": "boolean" },
+          "hint": { "type": "string" }
+        },
+        "required": ["present", "hint"]
+      },
+      "ModuleMeta": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string" },
+          "command": { "type": "string" },
+          "needsFile": { "type": "boolean" }
+        },
+        "required": ["label", "command", "needsFile"]
+      },
+      "AgentModels": {
+        "type": "object",
+        "properties": {
+          "intent": { "type": "string" },
+          "architect": { "type": "string" },
+          "examiner": { "type": "string" },
+          "solver": { "type": "string" },
+          "judge": { "type": "string" },
+          "student": { "type": "string" },
+          "reviewer": { "type": "string" },
+          "visualcurator": { "type": "string" },
+          "artist": { "type": "string" },
+          "quizplanner": { "type": "string" }
+        },
+        "additionalProperties": { "type": "string" }
+      },
+      "ModuleSettings": {
+        "type": "object",
+        "properties": {
+          "subject": { "type": "string" },
+          "grade": { "type": "string" },
+          "model": { "type": "string" },
+          "driveFolderId": { "type": "string" },
+          "driveFolderUrl": { "type": "string" },
+          "driveFolderName": { "type": "string" },
+          "useSummary": { "type": "boolean" },
+          "uploadDrive": { "type": "boolean" },
+          "mode": { "type": "string" },
+          "notebookIds": { "type": "array", "items": { "type": "string" } },
+          "activeNotebookId": { "type": "string" },
+          "selectedNotebookIds": { "type": "array", "items": { "type": "string" } },
+          "notebookPrompt": { "type": "string" },
+          "agentMode": { "type": "boolean" },
+          "persona": { "type": "string" },
+          "systemPrompt": { "type": "string" },
+          "skillIds": { "type": "array", "items": { "type": "string" } },
+          "enabledTools": { "type": "array", "items": { "type": "string" } },
+          "maxTurns": { "type": "integer" },
+          "useSources": { "type": "boolean" },
+          "questionTypes": { "type": "array", "items": { "type": "string" } },
+          "access": { "type": "string" },
+          "definition": { "type": "string" },
+          "icon": { "type": "string" },
+          "color": { "type": "string" },
+          "customAgents": { "type": "array", "items": { "type": "string" } },
+          "agentModels": { "$ref": "#/components/schemas/AgentModels" },
+          "quizCount": { "type": "integer" },
+          "quizTotalScore": { "type": "integer" },
+          "quizTimeMinutes": { "type": "integer" },
+          "customSubjects": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": true
+      },
+      "SettingsResponse": {
+        "type": "object",
+        "properties": {
           "outputDir": { "type": "string" },
           "workspaceDir": { "type": "string" },
           "engineDir": { "type": "string" },
           "hermesHome": { "type": "string" },
           "googleCredentialFile": { "type": "string" },
           "routerBaseUrl": { "type": "string" },
-          "defaultWorkerModel": { "type": "string" },
-          "driveFolderId": { "type": "string", "description": "Raw folder id or Google Drive folder URL. Server normalizes it before use." },
-          "uploadDrive": { "type": "boolean" },
-          "quizCount": { "type": "integer", "minimum": 1, "maximum": 20 },
-          "quizTotalScore": { "type": "number" },
-          "quizTimeMinutes": { "type": "integer", "minimum": 1 },
-          "agentModels": { "type": "object", "additionalProperties": { "type": "string" } }
-        }
+          "fallbackModels": { "type": "string" },
+          "modelRetries": { "type": "integer" },
+          "retryDelayMs": { "type": "integer" },
+          "apiKeys": {
+            "type": "object",
+            "properties": {
+              "gemini": { "$ref": "#/components/schemas/MaskedKey" },
+              "deepseek": { "$ref": "#/components/schemas/MaskedKey" },
+              "glm": { "$ref": "#/components/schemas/MaskedKey" },
+              "openrouter": { "$ref": "#/components/schemas/MaskedKey" }
+            },
+            "required": ["gemini", "deepseek", "glm", "openrouter"]
+          },
+          "modules": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/components/schemas/ModuleSettings" }
+          }
+        },
+        "required": ["outputDir", "workspaceDir", "engineDir", "hermesHome", "googleCredentialFile", "routerBaseUrl", "fallbackModels", "modelRetries", "retryDelayMs", "apiKeys", "modules"]
       },
-      "OkResponse": {
+      "SettingsUpdate": {
         "type": "object",
-        "required": ["ok"],
-        "properties": { "ok": { "type": "boolean" } },
+        "properties": {
+          "outputDir": { "type": "string" },
+          "workspaceDir": { "type": "string" },
+          "engineDir": { "type": "string" },
+          "hermesHome": { "type": "string" },
+          "googleCredentialFile": { "type": "string" },
+          "routerBaseUrl": { "type": "string" },
+          "fallbackModels": { "type": "string" },
+          "modelRetries": { "type": "integer" },
+          "retryDelayMs": { "type": "integer" },
+          "apiKeys": {
+            "type": "object",
+            "properties": {
+              "gemini": { "type": "string", "description": "Write-only API key or empty string to clear" },
+              "deepseek": { "type": "string", "description": "Write-only API key or empty string to clear" },
+              "glm": { "type": "string", "description": "Write-only API key or empty string to clear" },
+              "openrouter": { "type": "string", "description": "Write-only API key or empty string to clear" }
+            },
+            "additionalProperties": true
+          },
+          "modules": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/components/schemas/ModuleSettings" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "GoogleAuthStatus": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "present": { "type": "boolean" },
+          "account": { "type": "string" },
+          "hasClient": { "type": "boolean" },
+          "hasRefresh": { "type": "boolean" },
+          "hasAccess": { "type": "boolean" },
+          "expiry": { "type": ["string", "null"], "format": "date-time" },
+          "credentialFile": { "type": "string" }
+        },
+        "required": ["ok", "present", "account", "hasClient", "hasRefresh", "hasAccess", "credentialFile"]
+      },
+      "SourceItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "kind": { "type": "string" },
+          "content": { "type": "string" },
+          "path": { "type": "string" },
+          "createdAt": { "type": "number" },
+          "updatedAt": { "type": "number" }
+        },
         "additionalProperties": true
       },
-      "ErrorResponse": {
+      "SkillItem": {
         "type": "object",
-        "required": ["ok", "error"],
         "properties": {
-          "ok": { "type": "boolean", "const": false },
-          "error": { "type": "string" }
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "prompt": { "type": "string" },
+          "appliesTo": { "type": "array", "items": { "type": "string" } },
+          "agentFlow": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": true
+      },
+      "SessionItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "module": { "type": "string" },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "role": { "type": "string" },
+                "text": { "type": "string" }
+              },
+              "additionalProperties": true
+            }
+          },
+          "updatedAt": { "type": "number" }
         },
         "additionalProperties": true
       }

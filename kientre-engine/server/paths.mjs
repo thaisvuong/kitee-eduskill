@@ -46,7 +46,7 @@ const CANDIDATES = [
 function pickPython() {
  for (const py of CANDIDATES) {
   try {
-   execFileSync(py, ['-c', 'import docx, latex2mathml, mathml2omml'],
+   execFileSync(py, ['-c', 'import docx, latex2mathml, matplotlib, fitz, PIL; import mathml2omml'],
     { env: cleanEnv(), stdio: 'ignore' })
    return py
   } catch { /* thử ứng viên kế tiếp */ }

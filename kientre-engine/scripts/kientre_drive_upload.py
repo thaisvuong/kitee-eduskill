@@ -207,6 +207,13 @@ def main():
                 gdoc = upload_as_gdoc(token, f, args.folder, force_slim=True)
             except Exception as e2:
                 gdoc_error = str(e2 or e)
+        local_deleted = False
+        if args.delete_local and gdoc:
+            try:
+                f.unlink()
+                local_deleted = True
+            except Exception:
+                local_deleted = False
         uploaded.append({
             'name': f.name,
             'docxId': (docx or {}).get('id'),
@@ -216,12 +223,8 @@ def main():
             'gdocId': (gdoc or {}).get('id'),
             'gdocLink': (gdoc or {}).get('webViewLink'),
             'gdocError': gdoc_error,
+            'localDeleted': local_deleted,
         })
-        if args.delete_local and gdoc:
-            try:
-                f.unlink()
-            except Exception:
-                pass
 
     print(json.dumps({'ok': True, 'folderId': args.folder,
                       'uploaded': uploaded, 'skipped': skipped}, ensure_ascii=False))

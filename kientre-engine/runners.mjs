@@ -297,34 +297,29 @@ export async function runQuizSet(params = {}) {
  const step = text => { try { onProgress({ type: 'assistant', text }) } catch {} }
  console.log(`🧭 Architect chốt ranh giới lớp trước khi lập quiz (${grade}, ${subject})`)
  step(`Architect: lập ranh giới kiến thức, mục tiêu, thuật ngữ cho ${grade}`)
- let finalReference = String(reference || '').trim()
+ const directReference = String(reference || '').trim()
+ let architectReference = ''
  try {
   const blueprint = await runArchitect(topic, grade, subject)
-  const architectRef = [
+  architectReference = [
    `MỤC TIÊU ARCHITECT:\n${(blueprint.objectives || []).map(x => `- ${x}`).join('\n')}`,
    `RANH GIỚI ARCHITECT:\n${[...(blueprint.boundaries || []), ...judgeBoundaries(grade, subject)].map(x => `- ${x}`).join('\n')}`,
   ].join('\n')
-  finalReference = [architectRef, finalReference].filter(Boolean).join('\n\n').slice(0, 6000)
  } catch (err) {
   console.warn(`⚠️ Architect không chạy được (${err.message}); dùng ranh giới mặc định.`)
-  finalReference = [`RANH GIỚI MẶC ĐỊNH:\n${judgeBoundaries(grade, subject).map(x => `- ${x}`).join('\n')}`, finalReference].filter(Boolean).join('\n\n').slice(0, 6000)
+  architectReference = `RANH GIỚI MẶC ĐỊNH:\n${judgeBoundaries(grade, subject).map(x => `- ${x}`).join('\n')}`
  }
+ let notebookReference = ''
+ if (notebook) {
+  try { const nb = await notebookRefs(notebook, `Tóm tắt dạng quiz/bài tập về ${topic} cho ${grade}`); if (nb.ok) notebookReference = nb.text } catch { /* ok */ }
+ }
+ const plannerReference = [architectReference, directReference, notebookReference].filter(Boolean).join('\n\n').slice(0, 6000)
+ const examinerReference = [architectReference, directReference, notebookReference].filter(Boolean).join('\n\n').slice(0, 6000)
  console.log(`🧭 QuizPlanner lập khung: ${count} quiz · ${totalScore} điểm · ${timeMinutes} phút (${grade}, ${subject})`)
  step(`QuizPlanner: lập bảng khung ${count} quiz, ${totalScore} điểm, ${timeMinutes} phút`)
- if (useWeb) {
-  try {
-   const ws = await fetchExerciseSources(topic, grade)
-   finalReference = [finalReference, ws.refs].filter(Boolean).join('\n').slice(0, 6000)
-   if (ws.sources?.length) console.log(`  🔗 Nguồn: ${ws.sources.join(' , ')}`)
-  } catch { /* ok */ }
- } else {
-  console.log('📝 Không có tài liệu ngoài. Tự soạn quiz theo chương trình, không soạn chuyên đề.')
- }
- if (notebook) {
-  try { const nb = await notebookRefs(notebook, `Tóm tắt dạng quiz/bài tập về ${topic} cho ${grade}`); if (nb.ok) finalReference = (nb.text + '\n' + finalReference).slice(0, 6000) } catch { /* ok */ }
- }
+ console.log('🧾 QuizPlanner tự lập khung theo môn/lớp. Không web search ở bước này.')
 
- const plan = trimQuizPlan(await planQuizSet({ topic, grade, subject, quizCount: count, totalScore, timeMinutes, reference: finalReference }), count)
+ const plan = trimQuizPlan(await planQuizSet({ topic, grade, subject, quizCount: count, totalScore, timeMinutes, reference: plannerReference }), count)
  step(`Bảng khung QuizPlanner:\n${plan.quizzes.map(q => `${q.title || `Quiz ${q.index}`}: ${(q.questions || []).map(x => `C${x.index} ${x.type} ${x.points}đ — ${x.note || ''}`).join('\n  ')}`).join('\n')}`)
  const folder = `QUIZ_G${gradeNum(grade)}_${dateStr()}_${slugify(topic || subject)}`
  const outDir = path.join(process.env.KIENTRE_OUTPUT_DIR || process.env.HERMES_WORKSPACE_DIR || process.cwd(), folder)
@@ -348,8 +343,8 @@ export async function runQuizSet(params = {}) {
    const q = normalizeQuestionPlan(await takeFrameQuestion(framePath, quiz, qPlan), subject)
    console.log(`  ✍️ Câu ${q.index}: ${q.type} · ${q.points} điểm`)
    step(`Examiner: lấy khung.md và soạn ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} · ${q.type} · ${q.points} điểm`)
-   // Ưu tiên nguồn web/tài liệu cho câu này, rồi chế lại về đúng loại (trắc nghiệm/điền/tự luận).
-   const detail = await generateQuizQuestion({ grade, subject, topic, globalContext: plan.globalContext, quiz, question: q, reference: finalReference })
+   // Sau khi có khung: tìm dạng gần trên web/tài liệu để chế lại; không có thì tự ra đề.
+   const detail = await generateQuizQuestion({ grade, subject, topic, globalContext: plan.globalContext, quiz, question: q, reference: examinerReference, allowWebSearch: true })
    if (detail.visual) {
     step(`Artist: minh hoạ ${quiz.title || `Quiz ${quiz.index}`} câu ${q.index} (ưu tiên ảnh web, không có thì tự vẽ)`)
     const img = path.join(outDir, 'images', `quiz${quiz.index}_cau${q.index}.png`)
@@ -404,7 +399,8 @@ export async function runQuizSet(params = {}) {
       grade, subject, topic, globalContext: plan.globalContext,
       quiz: { title: section.heading, difficulty: '' },
       question: { ...meta, note: [meta.note, b.question].filter(Boolean).join('\n\nBẢN CŨ:\n') },
-      reference: `${finalReference}\n\nYÊU CẦU SỬA LỖI TỪ QA:\n${fixNote}`,
+      reference: `${examinerReference}\n\nYÊU CẦU SỬA LỖI TỪ QA:\n${fixNote}`,
+      allowWebSearch: true,
      })
      if (refixed?.question) b.question = sanitizeQuizText([refixed.question, refixed.options?.length ? refixed.options.join('\n') : ''].filter(Boolean).join('\n'))
      const hintIdx = section.blocks.findIndex((x, k) => k > bi && x.type === 'note' && x.title === 'Gợi ý')

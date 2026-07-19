@@ -252,9 +252,11 @@ export async function POST(req: Request) {
         for (const u of res.uploaded) {
          driveUploads.push(u)
          sse(controller, 'log', { line: u.gdocLink ? `☁️ ${u.name} → Docs: ${u.gdocLink}` : `☁️ ${u.name} → Word: ${u.docxLink}. ⚠️ Convert Docs lỗi: ${u.gdocError || 'không rõ'}`, jobId })
+         if (!u.gdocLink && u.docxViewLink) sse(controller, 'log', { line: `↗ Xem trên Drive: ${u.docxViewLink}`, jobId })
+         if (!u.gdocLink && !u.localDeleted) sse(controller, 'log', { line: `📦 Giữ file local vì chưa convert được Google Docs.`, jobId })
         }
         if (res.skipped?.length) sse(controller, 'log', { line: `↷ Bỏ qua ${res.skipped.length} file không phải .docx`, jobId })
-        sse(controller, 'log', { line: `🗑️ Đã xoá file local sau khi upload.`, jobId })
+        if (res.uploaded?.some((u: any) => u.localDeleted)) sse(controller, 'log', { line: `🗑️ Đã xoá file local cho các file đã convert Google Docs thành công.`, jobId })
        }
       }
      }

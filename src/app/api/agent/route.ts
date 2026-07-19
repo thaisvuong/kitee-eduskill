@@ -166,7 +166,7 @@ async function buildPayload(moduleKey: string, task: string, history: any[], set
   if (['solve', 'review'].includes(moduleKey)) enabledTools.unshift('analyze_document')
   if (useNotebook) enabledTools.unshift('read_notebook')
   if (sources.length) enabledTools.unshift('read_source')
-  if (wantsWeb || (!useNotebook && !sources.length && ['topic', 'quiz', 'test'].includes(moduleKey))) enabledTools.unshift('web_search')
+  if (moduleKey !== 'quiz' && (wantsWeb || (!useNotebook && !sources.length && ['topic', 'test'].includes(moduleKey)))) enabledTools.unshift('web_search')
  } else {
   enabledTools = mod.enabledTools || ['read_source', 'analyze_document', 'web_search', 'write_docx', 'run_skill', 'finish']
  }
@@ -286,6 +286,8 @@ export async function POST(req: Request) {
        for (const u of res.uploaded) {
         driveUploads.push(u)
         sse(controller, 'agent_step', { type: 'assistant', text: u.gdocLink ? `☁️ ${u.name} → Docs: ${u.gdocLink}` : `☁️ ${u.name} → Word: ${u.docxLink}. ⚠️ Convert Docs lỗi: ${u.gdocError || 'không rõ'}` })
+        if (!u.gdocLink && u.docxViewLink) sse(controller, 'agent_step', { type: 'assistant', text: `↗ Xem trên Drive: ${u.docxViewLink}` })
+        if (!u.gdocLink && !u.localDeleted) sse(controller, 'agent_step', { type: 'assistant', text: `📦 Giữ file local vì chưa convert được Google Docs.` })
        }
       }
      }

@@ -93,15 +93,32 @@ Copy phần này vào mô tả repo hoặc để họ đọc `README.md`.
 - **Kientre** (thư mục chứa `slash.mjs`) — cần cho tính năng tạo/giải/nhận xét tài liệu.
 - (Tùy chọn) Google OAuth nếu muốn tự động upload lên Google Drive.
 
+### Cài đặt nhanh nhất: một lệnh (macOS / Linux)
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/<USERNAME>/kientreaaa/main/bootstrap.sh)"
+```
+
+Lệnh này sẽ:
+- clone repo về `~/KientreAAA` nếu chưa có, hoặc pull bản mới nhất nếu đã có
+- cài Node nếu thiếu
+- cài 9router nếu thiếu
+- cài Python deps cho Kientre engine
+- `npm install`
+- `npm run build`
+- mở 9router để nhập key
+- chạy web app
+
 ### Cài đặt nhanh (macOS / Linux)
 
 ```bash
 git clone https://github.com/<USERNAME>/kientreaaa.git
 cd kientreaaa
-./setup.sh
+./bootstrap.sh
 ```
 
-`setup.sh` sẽ: kiểm tra Node → tạo `.env.local` → `npm install` → `npm run build`.
+`bootstrap.sh` sẽ tự clone/pull repo và gọi `install.sh`.
+`setup.sh`/`install.sh` sẽ: kiểm tra Node → cài 9router → cài deps Python → tạo `.env.local` → `npm install` → `npm run build` → mở 9router → chạy web app.
 
 ### Cài đặt thủ công (mọi hệ điều hành, gồm Windows)
 
